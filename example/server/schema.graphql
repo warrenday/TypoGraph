@@ -1,0 +1,13 @@
+import type { User } from "./entitiies/user";
+
+type Schema = {
+  User: User;
+  Query: {
+    getUser: () => User;
+  };
+  Mutation: {
+    updateUser: (user: User) => User;
+  };
+};
+
+export type { Schema };
