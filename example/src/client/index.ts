@@ -1,24 +1,35 @@
+import { useQuery } from "urql";
 import { createClient } from "../../../src";
 import { type TypeDefs } from "../../server/entitiies/index";
 
 const client = createClient<TypeDefs>();
 
-const run = async () => {
-  const user = await client.query("getUser", {
-    id: true,
-    name: true,
-    articles: {
-      id: true,
-      title: true,
-    },
+const useQueryWrapper = <
+  Q extends Parameters<typeof client.query>[0],
+  S extends Parameters<typeof client.query>[1]
+>(
+  query: Q,
+  selection: S
+) => {
+  const user = client.query(query, selection);
+
+  const [result] = useQuery({
+    query: user.toGraphQL(),
   });
 
-  const title = user.articles[0].id;
+  return {
+    ...result,
+    data: result.data as typeof user.types,
+  };
+};
 
-  // user.articles
+const run = async () => {
+  const { data } = useQueryWrapper("getUser", {
+    id: true,
+    name: true,
+  });
 
-  // // user.name;
-  // user.articles.map((article) => article.author.name);
+  data.id;
 };
 
 run();

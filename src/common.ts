@@ -1,3 +1,10 @@
+// Helper type to make types more readable by expanding them to their base types
+export type Prettify<T> = T extends object
+  ? {
+      [K in keyof T]: Prettify<T[K]>;
+    } & {}
+  : T;
+
 // Helper type to merge array of objects into a single object
 type UnionToIntersection<U> =
   // First convert union to union of functions and set the argument type
@@ -11,8 +18,8 @@ type UnionToIntersection<U> =
     ? I
     : never;
 
-export type Merge<T extends Array<Record<string, any>>> = UnionToIntersection<
-  T[number]
+export type Merge<T extends Array<Record<string, any>>> = Prettify<
+  UnionToIntersection<T[number]>
 >;
 
 export type ExtractValue<T> = {

@@ -11,25 +11,26 @@ type Evaluate<T> = {
  *
  * @param obj - The object to evaluate
  */
-const evaluate = <T extends any>(obj: T): Evaluate<T> => {
-  let result = {};
+const evaluate = <T extends object>(obj: T): Evaluate<T> => {
+  let result = {} as Evaluate<T>;
 
-  for (const key of Object.keys(obj)) {
+  for (const k of Object.keys(obj)) {
+    const key = k as keyof T;
     const value = obj[key];
 
     if (isObject(value)) {
-      result[key] = evaluate(value);
+      result[key] = evaluate(value as object) as Evaluate<T>[keyof T];
       continue;
     }
 
     if (typeof value === "function") {
-      result[key] = value();
+      result[key] = value() as Evaluate<T>[keyof T];
     } else {
-      result[key] = value;
+      result[key] = value as Evaluate<T>[keyof T];
     }
   }
 
-  return result as Evaluate<T>;
+  return result;
 };
 
 export default evaluate;

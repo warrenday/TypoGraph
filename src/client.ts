@@ -1,5 +1,5 @@
-import { BaseTypeDefs } from "./common";
-
+import { BaseTypeDefs, Prettify } from "./common";
+import buildGraphQLQuery from "./utils/buildGraphQLQuery";
 type BaseType = "Query" | "Mutation";
 
 // Create a type-safe client
@@ -35,53 +35,39 @@ type SelectFields<T, S extends SelectionSet<T>> = {
     : never;
 };
 
-async function fetchQuery<
-  S extends BaseTypeDefs,
-  T extends QueryKeys<S, "Query">,
-  Q extends SelectionSet<QueryResponse<S, T, "Query">>
->(
-  query: T,
-  selectionSet: Q
-): Promise<SelectFields<QueryResponse<S, T, "Query">, Q>> {
-  // Actual fetch logic here
-  // ...
-  return {} as SelectFields<QueryResponse<S, T, "Query">, Q>;
-}
-
-async function fetchMutation<
-  S extends BaseTypeDefs,
-  T extends QueryKeys<S, "Query">,
-  Q extends SelectionSet<QueryResponse<S, T, "Query">>
->(
-  query: T,
-  selectionSet: Q
-): Promise<SelectFields<QueryResponse<S, T, "Query">, Q>> {
-  // Actual fetch logic here
-  // ...
-  return {} as SelectFields<QueryResponse<S, T, "Query">, Q>;
-}
-
 const createClient = <TUserSchema extends { types: BaseTypeDefs }>() => {
   return {
-    query: async <
+    query: <
       S extends TUserSchema["types"],
       T extends QueryKeys<S, "Query">,
       Q extends SelectionSet<QueryResponse<S, T, "Query">>
     >(
       query: T,
       selectionSet: Q
-    ): Promise<SelectFields<QueryResponse<S, T, "Query">, Q>> => {
-      return await fetchQuery(query, selectionSet);
+    ): {
+      types: Prettify<SelectFields<QueryResponse<S, T, "Query">, Q>>;
+      toGraphQL: () => string;
+    } => {
+      return {
+        types: {} as any,
+        toGraphQL: () => buildGraphQLQuery(query as string, selectionSet as {}),
+      };
     },
-    mutate: async <
+    mutate: <
       S extends TUserSchema["types"],
       T extends QueryKeys<S, "Mutation">,
       Q extends SelectionSet<QueryResponse<S, T, "Mutation">>
     >(
-      mutation: T,
+      query: T,
       selectionSet: Q
-    ): Promise<SelectFields<QueryResponse<S, T, "Mutation">, Q>> => {
-      return await fetchMutation(mutation, selectionSet);
+    ): {
+      types: Prettify<SelectFields<QueryResponse<S, T, "Mutation">, Q>>;
+      toGraphQL: () => string;
+    } => {
+      return {
+        types: {} as any,
+        toGraphQL: () => buildGraphQLQuery(query as string, selectionSet as {}),
+      };
     },
   };
 };
