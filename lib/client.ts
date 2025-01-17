@@ -40,33 +40,51 @@ const createClient = <TUserSchema extends { types: BaseTypeDefs }>() => {
     query: <
       S extends TUserSchema["types"],
       T extends QueryKeys<S, "Query">,
-      Q extends SelectionSet<QueryResponse<S, T, "Query">>
+      Q extends SelectionSet<QueryResponse<S, T, "Query">>,
+      V extends Record<string, any>
     >(
       query: T,
-      selectionSet: Q
+      selectionSet: Q,
+      options: { variables: V }
     ): {
-      types: Prettify<SelectFields<QueryResponse<S, T, "Query">, Q>>;
+      types: {
+        [K in T]: Prettify<SelectFields<QueryResponse<S, K, "Query">, Q>>;
+      };
       toGraphQL: () => string;
     } => {
       return {
         types: {} as any,
-        toGraphQL: () => buildGraphQLQuery(query as string, selectionSet as {}),
+        toGraphQL: () =>
+          buildGraphQLQuery(
+            query as string,
+            selectionSet as {},
+            options.variables
+          ),
       };
     },
     mutate: <
       S extends TUserSchema["types"],
       T extends QueryKeys<S, "Mutation">,
-      Q extends SelectionSet<QueryResponse<S, T, "Mutation">>
+      Q extends SelectionSet<QueryResponse<S, T, "Mutation">>,
+      V extends Record<string, any>
     >(
       query: T,
-      selectionSet: Q
+      selectionSet: Q,
+      options: { variables: V }
     ): {
-      types: Prettify<SelectFields<QueryResponse<S, T, "Mutation">, Q>>;
+      types: {
+        [K in T]: Prettify<SelectFields<QueryResponse<S, K, "Mutation">, Q>>;
+      };
       toGraphQL: () => string;
     } => {
       return {
         types: {} as any,
-        toGraphQL: () => buildGraphQLQuery(query as string, selectionSet as {}),
+        toGraphQL: () =>
+          buildGraphQLQuery(
+            query as string,
+            selectionSet as {},
+            options.variables
+          ),
       };
     },
   };

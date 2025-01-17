@@ -24,7 +24,7 @@ export const createTypeDefBuilder = (): Builder => {
         // Deep merge the typeDefs
         const combined = merge(...typeDefs);
         // Evaluate the any lazy types
-        const types = evaluate(combined);
+        const types = evaluate(combined as any);
         // Convert to AST
         const ast = builderToAst(types);
         // Convert to SDL

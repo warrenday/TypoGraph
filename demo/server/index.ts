@@ -1,7 +1,7 @@
 import { createSchema, createYoga } from "graphql-yoga";
 import { createServer } from "http";
 import { typeDefs, type TypeDefs } from "./entitiies/index";
-import { type Resolvers } from "../../src";
+import { type Resolvers } from "../../lib/main";
 
 const resolvers: Resolvers<TypeDefs> = {
   Post: {
@@ -12,6 +12,7 @@ const resolvers: Resolvers<TypeDefs> = {
       // TODO: Implement
       return {
         id: "1",
+        name: "John Doe",
       };
     },
   },

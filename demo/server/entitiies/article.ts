@@ -1,4 +1,4 @@
-import { t } from "../../../src/builder";
+import { t } from "../../../lib/builder";
 import { builder } from "../builder";
 import type { User } from "./user";
 

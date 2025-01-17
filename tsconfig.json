@@ -1,0 +1,17 @@
+{
+  "compilerOptions": {
+    "declaration": true,
+    "declarationMap": true, // Optional: Includes source maps for declarations
+    "emitDeclarationOnly": true, // Only emit declaration files (handled by Vite for bundling)
+    "outDir": "./dist/types", // Match the `outputDir` in the plugin
+    "strict": true,
+    "module": "ESNext",
+    "target": "ESNext",
+    "moduleResolution": "Node",
+    "jsx": "react",
+    "esModuleInterop": true,
+    "skipLibCheck": true,
+    "allowSyntheticDefaultImports": true
+  },
+  "include": ["lib"]
+}
