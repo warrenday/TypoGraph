@@ -56,6 +56,7 @@ const createClient = <TUserSchema extends { types: BaseTypeDefs }>() => {
         types: {} as any,
         toGraphQL: () =>
           buildGraphQLQuery(
+            "query",
             query as string,
             selectionSet as {},
             options.variables
@@ -81,6 +82,7 @@ const createClient = <TUserSchema extends { types: BaseTypeDefs }>() => {
         types: {} as any,
         toGraphQL: () =>
           buildGraphQLQuery(
+            "mutation",
             query as string,
             selectionSet as {},
             options.variables

@@ -11,6 +11,7 @@ type Fields = {
  * @param fields - The fields object
  */
 function buildGraphQLQuery(
+  queryType: "query" | "mutation",
   queryName: string,
   fields: Fields,
   variables: Record<string, any>
@@ -31,13 +32,15 @@ function buildGraphQLQuery(
 
   const fieldString = processFields(fields);
 
+  // Include variables if we have any
   const variablesString = Object.entries(variables)
     .map(([key, value]) => `${key}: "${value}"`)
     .join(", ");
+  const variablesTemplate = variablesString ? `(${variablesString})` : "";
 
   return `
-    query ${capitalize(queryName)} {
-      ${queryName}(${variablesString}) {
+    ${queryType} ${capitalize(queryName)} {
+      ${queryName}${variablesTemplate} {
         ${fieldString}
       }
     }
