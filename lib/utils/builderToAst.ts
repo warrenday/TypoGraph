@@ -6,6 +6,11 @@ import {
   Kind,
   TypeNode,
 } from "graphql";
+import {
+  type InputArgValue,
+  type FieldWithArgsWrapper,
+  isFieldWithArgsWrapper,
+} from "./runtime-types";
 
 // A field map for an object type: each field is either a plain GraphQL type
 // string (e.g. `"String!"`) or a `builder.field(...)` wrapper carrying its
@@ -21,31 +26,6 @@ type InputTypeWrapper = {
   __kind: "input";
   fields: InputObjectFields;
 };
-
-// Tagged wrapper produced by `builder.field(...)`. Lives inside an object
-// type's field map (not at the top level) and lets a single field declare
-// its own arguments — emitted as `fieldName(arg: Type): Output` in SDL.
-// `input` carries the same evaluated runtime shape as a top-level
-// operation's input map (so it can reuse `t.string({ default })` etc.).
-type FieldWithArgsWrapper = {
-  __kind: "field";
-  input: Record<string, InputArgValue>;
-  output: string;
-};
-
-const isFieldWithArgsWrapper = (
-  value: unknown
-): value is FieldWithArgsWrapper =>
-  typeof value === "object" &&
-  value !== null &&
-  (value as { __kind?: unknown }).__kind === "field";
-
-// An input arg's evaluated runtime shape: either a plain GraphQL type string
-// (for required args without defaults) or a richer `{ type, default }` object
-// (for args declared with `t.string({ default: ... })`). The default lives on
-// the operation header rather than the SDL field arg, so `builderToAst` only
-// needs the type string here — it just unwraps the richer shape.
-type InputArgValue = string | { type: string; default: unknown };
 
 // A single Query/Mutation/Subscription operation definition.
 type OperationDef = {

@@ -6,6 +6,10 @@ import {
   UnionToIntersection,
 } from "./types/common";
 import buildGraphQLQuery from "./utils/buildGraphQLQuery";
+import {
+  isArgsWrapper,
+  isFieldWithArgsWrapper,
+} from "./utils/runtime-types";
 
 type BaseType = "Query" | "Mutation" | "Subscription";
 
@@ -425,32 +429,6 @@ type OperationHandler<
   toGraphQL: () => string;
 };
 
-// Detect an `args(...)` wrapper at runtime. We can't use `instanceof`
-// because the wrapper is a plain object literal — both the `__args` map
-// and the `selection` payload are required, and `__args` is the cheap
-// fingerprint to check first.
-const isArgsWrapper = (
-  value: unknown
-): value is { __args: Record<string, string>; selection: unknown } =>
-  typeof value === "object" &&
-  value !== null &&
-  "__args" in value &&
-  "selection" in value;
-
-// Detect a `builder.field(...)` wrapper inside the evaluated typeDefs. The
-// wrapper carries the field's own input map (as ordinary `InputArgValue`
-// entries) plus its declared output type string. Used by the runtime
-// selection walk to look up nested arg types from the schema.
-const isFieldWithArgsWrapper = (
-  value: unknown
-): value is {
-  __kind: "field";
-  input: Record<string, string | { type: string; default: unknown }>;
-  output: string;
-} =>
-  typeof value === "object" &&
-  value !== null &&
-  (value as { __kind?: unknown }).__kind === "field";
 
 // Strip GraphQL non-null and list wrappers from a type string so we can use
 // the inner named type as a lookup key. Mirrors what the SDL pipeline does

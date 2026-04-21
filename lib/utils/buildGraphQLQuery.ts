@@ -1,23 +1,9 @@
 import capitalize from "./capitalize";
-
-// A nested-args wrapper carried inside a selection sub-tree, produced by
-// the `args(...)` helper at a non-top-level position. processFields detects
-// this shape and renders `field(argName: $varName) { ... }`. The runtime
-// already populates the `__args` map with `$`-prefixed variable references
-// (matching the on-the-wire syntax), so we can pass them through verbatim.
-type NestedArgsWrapper = {
-  __args: Record<string, string>;
-  selection: Fields;
-};
+import { type InputArgValue, isArgsWrapper } from "./runtime-types";
 
 type Fields = {
-  [key: string]: boolean | Fields | NestedArgsWrapper;
+  [key: string]: boolean | Fields | { __args: Record<string, string>; selection: Fields };
 };
-
-// An input arg's evaluated runtime shape: either a plain type string (for
-// required args) or a `{ type, default }` object (for args declared with a
-// schema-side default like `t.string({ default: "newest" })`).
-type InputArgValue = string | { type: string; default: unknown };
 
 // Per-operation selection. Either a map of selected fields (the normal
 // object-returning case) or a bare `true` when the operation returns a
@@ -29,14 +15,6 @@ type InputDefByOperation = Record<string, Record<string, InputArgValue>>;
 // so defaulted nested args participate in the header in the same way as
 // defaulted top-level vars.
 type ExtraHeaderVarsByOperation = Record<string, Record<string, InputArgValue>>;
-
-const isNestedArgsWrapper = (
-  value: unknown
-): value is NestedArgsWrapper =>
-  typeof value === "object" &&
-  value !== null &&
-  "__args" in value &&
-  "selection" in value;
 
 // Detect the richer `{ type, default }` shape without tripping the type
 // guard on plain string values. Used in two places below: deciding whether a
@@ -111,7 +89,7 @@ function buildGraphQLQuery(
         // Nested args wrapper: render `field(arg: $var) { ...inner }`. The
         // wrapper's `__args` already carries `$`-prefixed variable references
         // (Q8) so we can drop them straight into the field call.
-        if (isNestedArgsWrapper(value)) {
+        if (isArgsWrapper(value)) {
           const argParts = Object.entries(value.__args)
             .map(([argName, varRef]) => `${argName}: ${varRef}`)
             .join(", ");
