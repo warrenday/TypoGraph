@@ -61,7 +61,7 @@ the subscription in your schema, return an `AsyncIterable` from
 `subscribe`, and graphql-yoga takes care of the wire format.
 
 ```ts title="resolvers.ts"
-import type { Resolvers } from "typograph";
+import type { Resolvers } from "@overstacked/typograph";
 import type { TypeDefs } from "./schema";
 
 export const resolvers: Resolvers<TypeDefs> = {

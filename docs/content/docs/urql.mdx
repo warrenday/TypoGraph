@@ -20,14 +20,14 @@ The integration lives at `typograph/integrations/urql` and exposes a
 single factory:
 
 ```ts
-import { createUrqlIntegration } from "typograph/integrations/urql";
+import { createUrqlIntegration } from "@overstacked/typograph/integrations/urql";
 ```
 
 Wire it up once at app boot, alongside your urql `Client`:
 
 ```ts title="urql-client.ts"
 import { Client, cacheExchange, fetchExchange } from "urql";
-import { createUrqlIntegration } from "typograph/integrations/urql";
+import { createUrqlIntegration } from "@overstacked/typograph/integrations/urql";
 import { typeDefs } from "./schema";
 
 export const client = new Client({
@@ -51,7 +51,7 @@ pass typograph selection sets directly. There's no `gql` template
 literal and no string-based query.
 
 ```tsx title="Posts.tsx"
-import { args } from "typograph";
+import { args } from "@overstacked/typograph";
 import { useQuery, useMutation, useSubscription } from "./urql-client";
 
 export const Posts = () => {

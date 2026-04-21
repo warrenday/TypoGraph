@@ -6,7 +6,7 @@ import {
   HttpLink,
   InMemoryCache,
 } from "@apollo/client";
-import { createApolloIntegration } from "typograph/integrations/apollo";
+import { createApolloIntegration } from "@overstacked/typograph/integrations/apollo";
 import { typeDefs } from "../schema";
 import { App } from "./App";
 

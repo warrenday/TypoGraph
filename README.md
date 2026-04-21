@@ -1,9 +1,12 @@
 # Typograph
 
+[![npm version](https://img.shields.io/npm/v/@overstacked/typograph)](https://www.npmjs.com/package/@overstacked/typograph)
+[![license](https://img.shields.io/npm/l/@overstacked/typograph)](./LICENCE)
+
 Write GraphQL in plain TypeScript. Typograph turns ordinary JavaScript objects into standard GraphQL strings — fully typed end-to-end, with no codegen, no build step, and zero lock-in to any framework or client.
 
 ```ts
-import { createTypeDefBuilder, t, createClient } from "typograph";
+import { createTypeDefBuilder, t, createClient } from "@overstacked/typograph";
 
 const builder = createTypeDefBuilder();
 
@@ -40,12 +43,12 @@ type Result = typeof res.returnType;
 ## Install
 
 ```bash
-npm install typograph graphql
+npm install @overstacked/typograph graphql
 ```
 
 ## Documentation
 
-Full docs live in [`docs/`](./docs/content/docs). Start with the [introduction](./docs/content/docs/introduction.mdx), or run `npm --prefix docs run dev` to browse them locally.
+Full docs are available at [typographdocs.netlify.app](https://typographdocs.netlify.app/). You can also run them locally with `npm --prefix docs run dev`.
 
 ## License
 

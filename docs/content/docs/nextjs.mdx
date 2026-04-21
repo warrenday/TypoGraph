@@ -25,13 +25,13 @@ The pieces:
 ## 1. Install dependencies
 
 ```bash
-npm install typograph graphql graphql-yoga urql
+npm install @overstacked/typograph graphql graphql-yoga urql
 ```
 
 ## 2. Define the schema
 
 ```ts title="lib/schema.ts"
-import { createTypeDefBuilder, t } from "typograph";
+import { createTypeDefBuilder, t } from "@overstacked/typograph";
 
 const builder = createTypeDefBuilder();
 
@@ -69,7 +69,7 @@ export type TypeDefs = typeof typeDefs;
 ## 3. Write the resolvers
 
 ```ts title="lib/resolvers.ts"
-import type { Resolvers } from "typograph";
+import type { Resolvers } from "@overstacked/typograph";
 import type { TypeDefs } from "./schema";
 
 const posts: Array<{ id: string; title: string; body: string }> = [];
@@ -120,7 +120,7 @@ export const POST = handleRequest;
 "use client";
 
 import { Client, cacheExchange, fetchExchange } from "urql";
-import { createUrqlIntegration } from "typograph/integrations/urql";
+import { createUrqlIntegration } from "@overstacked/typograph/integrations/urql";
 import { typeDefs } from "./schema";
 
 export const client = new Client({

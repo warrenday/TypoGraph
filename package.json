@@ -1,49 +1,57 @@
 {
-  "name": "typograph",
+  "name": "@overstacked/typograph",
   "type": "module",
   "files": [
-    "lib",
     "dist"
   ],
-  "main": "./lib/main.ts",
-  "module": "./lib/main.ts",
+  "main": "./dist/main.cjs",
+  "module": "./dist/main.js",
+  "types": "./dist/main.d.ts",
   "exports": {
     ".": {
-      "types": "./lib/main.ts",
-      "import": "./lib/main.ts",
-      "default": "./lib/main.ts"
+      "types": "./dist/main.d.ts",
+      "import": "./dist/main.js",
+      "require": "./dist/main.cjs"
     },
     "./integrations/urql": {
-      "types": "./lib/integrations/urql.ts",
-      "import": "./lib/integrations/urql.ts",
-      "default": "./lib/integrations/urql.ts"
+      "types": "./dist/integrations/urql.d.ts",
+      "import": "./dist/integrations/urql.js",
+      "require": "./dist/integrations/urql.cjs"
     },
     "./integrations/apollo": {
-      "types": "./lib/integrations/apollo.ts",
-      "import": "./lib/integrations/apollo.ts",
-      "default": "./lib/integrations/apollo.ts"
+      "types": "./dist/integrations/apollo.d.ts",
+      "import": "./dist/integrations/apollo.js",
+      "require": "./dist/integrations/apollo.cjs"
     },
     "./integrations/react-query": {
-      "types": "./lib/integrations/react-query.ts",
-      "import": "./lib/integrations/react-query.ts",
-      "default": "./lib/integrations/react-query.ts"
+      "types": "./dist/integrations/react-query.d.ts",
+      "import": "./dist/integrations/react-query.js",
+      "require": "./dist/integrations/react-query.cjs"
     }
   },
-  "types": "./lib/main.ts",
   "version": "1.0.0",
+  "description": "Write GraphQL in plain TypeScript — fully typed end-to-end, with no codegen, no build step, and zero lock-in.",
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/warrenday/typograph"
+  },
+  "homepage": "https://typographdocs.netlify.app/",
+  "keywords": [
+    "graphql",
+    "typescript",
+    "typesafe",
+    "schema",
+    "codegen-free"
+  ],
   "scripts": {
     "test": "vitest --typecheck --run",
-    "dev": "npm --prefix ./demo run dev",
+    "dev": "npm --prefix ./examples/demo run dev",
     "build": "vite build",
     "typecheck": "tsc --noEmit"
   },
-  "dependencies": {
-    "dedent": "^1.5.3",
-    "graphql": "^16.9.0",
-    "ts-morph": "^24.0.0",
-    "typescript": "^5.6.3",
-    "vite": "^6.0.7"
+  "peerDependencies": {
+    "graphql": "^16.0.0"
   },
   "devDependencies": {
     "@apollo/client": "^3.11.0",
@@ -51,9 +59,14 @@
     "@types/node": "^22.13.10",
     "@types/react": "^19",
     "@types/react-dom": "^19",
+    "dedent": "^1.5.3",
+    "graphql": "^16.9.0",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
+    "ts-morph": "^24.0.0",
+    "typescript": "^5.6.3",
     "urql": "^4.2.1",
+    "vite": "^6.0.7",
     "vite-plugin-dts": "^4.5.0",
     "vitest": "^3.0.2"
   }

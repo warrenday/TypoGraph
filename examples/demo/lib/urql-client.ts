@@ -6,7 +6,7 @@ import {
   fetchExchange,
   subscriptionExchange,
 } from "urql";
-import { createUrqlIntegration } from "typograph/integrations/urql";
+import { createUrqlIntegration } from "@overstacked/typograph/integrations/urql";
 import { typeDefs } from "./entities";
 
 const GRAPHQL_PATH = "/api/graphql";

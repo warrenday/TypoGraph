@@ -28,7 +28,7 @@ The integration lives at `typograph/integrations/apollo` and exposes
 a single factory:
 
 ```ts
-import { createApolloIntegration } from "typograph/integrations/apollo";
+import { createApolloIntegration } from "@overstacked/typograph/integrations/apollo";
 ```
 
 Wire it up once at app boot, alongside your `ApolloClient`:
@@ -39,7 +39,7 @@ import {
   InMemoryCache,
   HttpLink,
 } from "@apollo/client";
-import { createApolloIntegration } from "typograph/integrations/apollo";
+import { createApolloIntegration } from "@overstacked/typograph/integrations/apollo";
 import { typeDefs } from "./schema";
 
 export const client = new ApolloClient({
@@ -76,7 +76,7 @@ export const App = () => (
 ```
 
 ```tsx title="Posts.tsx"
-import { args } from "typograph";
+import { args } from "@overstacked/typograph";
 import { useQuery, useMutation, useSubscription } from "./apollo-client";
 
 export const Posts = () => {

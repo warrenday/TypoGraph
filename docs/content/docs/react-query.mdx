@@ -26,7 +26,7 @@ The integration lives at `typograph/integrations/react-query` and
 exposes a single factory:
 
 ```ts
-import { createReactQueryIntegration } from "typograph/integrations/react-query";
+import { createReactQueryIntegration } from "@overstacked/typograph/integrations/react-query";
 ```
 
 Wire it up once at app boot. React Query doesn't own transport, so you
@@ -34,7 +34,7 @@ supply a `fetcher` that takes a GraphQL string + variables and returns
 the response data:
 
 ```ts title="graphql-client.ts"
-import { createReactQueryIntegration } from "typograph/integrations/react-query";
+import { createReactQueryIntegration } from "@overstacked/typograph/integrations/react-query";
 import { typeDefs } from "./schema";
 
 const GRAPHQL_URL = "http://localhost:3001/graphql";
@@ -92,7 +92,7 @@ export const App = () => (
 ```
 
 ```tsx title="Posts.tsx"
-import { args } from "typograph";
+import { args } from "@overstacked/typograph";
 import { useQueryClient } from "@tanstack/react-query";
 import { useQuery, useMutation } from "./graphql-client";
 

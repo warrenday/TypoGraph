@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { Client, cacheExchange, fetchExchange, Provider } from "urql";
-import { createUrqlIntegration } from "typograph/integrations/urql";
+import { createUrqlIntegration } from "@overstacked/typograph/integrations/urql";
 import { typeDefs } from "../schema";
 import { App } from "./App";
 

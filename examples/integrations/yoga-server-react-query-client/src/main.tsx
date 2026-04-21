@@ -1,7 +1,7 @@
 import React from "react";
 import ReactDOM from "react-dom/client";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { createReactQueryIntegration } from "typograph/integrations/react-query";
+import { createReactQueryIntegration } from "@overstacked/typograph/integrations/react-query";
 import { typeDefs } from "../schema";
 import { App } from "./App";
 

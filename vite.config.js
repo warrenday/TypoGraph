@@ -5,22 +5,29 @@ import dts from "vite-plugin-dts";
 export default defineConfig({
   build: {
     lib: {
-      entry: resolve(__dirname, "lib/main.ts"),
-      name: "Typograph",
-      // the proper extensions will be added
-      fileName: "typograph",
+      entry: {
+        main: resolve(__dirname, "lib/main.ts"),
+        "integrations/urql": resolve(__dirname, "lib/integrations/urql.ts"),
+        "integrations/apollo": resolve(
+          __dirname,
+          "lib/integrations/apollo.ts",
+        ),
+        "integrations/react-query": resolve(
+          __dirname,
+          "lib/integrations/react-query.ts",
+        ),
+      },
+      formats: ["es", "cjs"],
     },
     rollupOptions: {
-      // make sure to externalize deps that shouldn't be bundled
-      // into your library
-      external: ["graphql", "ts-morph", "tsx", "typescript"],
-      output: {
-        // Provide global variables to use in the UMD build
-        // for externalized deps
-        globals: {
-          vue: "Vue",
-        },
-      },
+      external: [
+        "graphql",
+        "urql",
+        "react",
+        "@apollo/client",
+        "@tanstack/react-query",
+        "graphql-ws",
+      ],
     },
   },
   plugins: [

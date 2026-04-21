@@ -8,7 +8,7 @@ into a GraphQL string. It's a thin wrapper — most of what it does is
 type-level — but everything you do at the call site flows through it.
 
 ```ts
-import { createClient } from "typograph";
+import { createClient } from "@overstacked/typograph";
 import { typeDefs } from "./schema";
 
 const client = createClient(typeDefs);
@@ -103,7 +103,7 @@ The `args(argBindings, selection)` helper is for two situations:
    name and need to disambiguate them.
 
 ```ts
-import { args } from "typograph";
+import { args } from "@overstacked/typograph";
 ```
 
 ### Nested field arguments

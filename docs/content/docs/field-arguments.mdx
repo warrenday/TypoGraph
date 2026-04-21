@@ -34,7 +34,7 @@ is what tells typograph "this field takes arguments" — and it's also
 what gives the resolver a typed second `args` parameter.
 
 ```ts title="schema.ts"
-import { createTypeDefBuilder, t } from "typograph";
+import { createTypeDefBuilder, t } from "@overstacked/typograph";
 
 const builder = createTypeDefBuilder();
 
@@ -54,7 +54,7 @@ On the call site, wrap the nested selection in `args(...)` to bind
 the field argument to a top-level variable.
 
 ```ts
-import { args } from "typograph";
+import { args } from "@overstacked/typograph";
 
 client.query(
   {

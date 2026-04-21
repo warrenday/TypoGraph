@@ -1,4 +1,4 @@
-import { createTypeDefBuilder, t, type Resolvers } from "typograph";
+import { createTypeDefBuilder, t, type Resolvers } from "@overstacked/typograph";
 
 const builder = createTypeDefBuilder();
 

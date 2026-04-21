@@ -1,4 +1,4 @@
-import { t } from "typograph";
+import { t } from "@overstacked/typograph";
 import { builder } from "../builder";
 import type { Card } from "../card";
 

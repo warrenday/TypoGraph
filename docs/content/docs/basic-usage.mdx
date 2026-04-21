@@ -19,7 +19,7 @@ combine everything into a single `typeDefs` object that both the
 server and the client will import.
 
 ```ts title="schema.ts"
-import { createTypeDefBuilder, t } from "typograph";
+import { createTypeDefBuilder, t } from "@overstacked/typograph";
 
 const builder = createTypeDefBuilder();
 
@@ -72,7 +72,7 @@ from the schema you just defined. The keys are your type names, and
 the values are typed handlers for each field.
 
 ```ts title="resolvers.ts"
-import type { Resolvers } from "typograph";
+import type { Resolvers } from "@overstacked/typograph";
 import type { TypeDefs } from "./schema";
 
 const posts: Array<{ id: string; title: string; body: string }> = [];
@@ -128,7 +128,7 @@ This is where the magic happens. The client only needs the same
 duplicated type definitions.
 
 ```ts title="client.ts"
-import { createClient } from "typograph";
+import { createClient } from "@overstacked/typograph";
 import { typeDefs } from "./schema";
 
 const client = createClient(typeDefs);
@@ -182,7 +182,7 @@ The urql setup looks like this:
 
 ```ts title="urql-client.ts"
 import { Client, cacheExchange, fetchExchange } from "urql";
-import { createUrqlIntegration } from "typograph/integrations/urql";
+import { createUrqlIntegration } from "@overstacked/typograph/integrations/urql";
 import { typeDefs } from "./schema";
 
 export const client = new Client({

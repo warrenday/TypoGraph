@@ -16,7 +16,7 @@
     "graphql-tag": "^2.12.6",
     "react": "^19.0.0",
     "react-dom": "^19.0.0",
-    "typograph": "file:../../.."
+    "@overstacked/typograph": "file:../../.."
   },
   "devDependencies": {
     "@types/node": "^22.13.10",

@@ -33,7 +33,7 @@
     "react-dom": "^19.0.0",
     "sonner": "^2.0.7",
     "tailwind-merge": "^3.5.0",
-    "typograph": "file:../..",
+    "@overstacked/typograph": "file:../..",
     "urql": "^4.2.1"
   },
   "devDependencies": {
