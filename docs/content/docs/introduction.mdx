@@ -1,0 +1,145 @@
+---
+title: Introduction
+description: A type-safe way to write GraphQL in plain TypeScript — no codegen, no build step, works with any client or server.
+---
+
+Typograph is a tiny TypeScript library for writing GraphQL on the
+client and the server. You define your schema once in plain TypeScript,
+and everything else — the queries you write, the variables you pass,
+the responses you get back, the resolvers on your server — is fully
+typed from that single source of truth.
+
+There's no codegen step, no `.graphql` files to maintain, and nothing
+to compile in the background. You write TypeScript, and you get
+GraphQL.
+
+## What it actually does
+
+At its core, typograph is a translator. You describe what you want
+using a normal JavaScript object, and typograph turns that into a
+standard GraphQL string. That's it.
+
+```ts
+client.query({
+  getPost: {
+    id: true,
+    title: true,
+    author: { name: true },
+  },
+});
+```
+
+Becomes:
+
+```graphql
+query GetPost {
+  getPost {
+    id
+    title
+    author {
+      name
+    }
+  }
+}
+```
+
+Because the output is just a plain GraphQL string and a plain
+variables object, you can hand it to **any** GraphQL client — urql,
+Apollo, graphql-request, React Query, plain `fetch`, anything. And
+because the input is just TypeScript, your editor knows exactly what
+fields you can select, what variables you need to pass, and what shape
+your data will come back in.
+
+## Why people use it
+
+<Cards>
+  <Card
+    title="Framework agnostic"
+    description="Works with any GraphQL client and any backend. Use it with React, Vue, Svelte, Node, Bun, or just plain fetch."
+  />
+  <Card
+    title="Zero codegen"
+    description="No build step, no watcher, no generated files to commit. Your types are always in sync because they live in the same place as your schema."
+  />
+  <Card
+    title="One source of truth"
+    description="Define the schema once and use it everywhere — client selections, server resolvers, and the SDL itself all derive from the same TypeScript object."
+  />
+  <Card
+    title="Tiny runtime"
+    description="The library is mostly type magic. The runtime is a thin wrapper that turns your JavaScript objects into GraphQL strings."
+  />
+  <Card
+    title="Real GraphQL out the other end"
+    description="Typograph emits standard SDL and standard query strings. Your server still speaks GraphQL — typograph just makes it nicer to write."
+  />
+  <Card
+    title="First-party React integrations"
+    description="Drop-in typed useQuery / useMutation / useSubscription hooks for urql, Apollo Client, and React Query. Or skip them entirely and use the core client with anything else."
+  />
+</Cards>
+
+## A quick taste
+
+Here's the smallest possible example — define a type, declare a query,
+and run it through the client. The selection set, the variables, and
+the result are all typed with no extra effort.
+
+```ts
+import { createTypeDefBuilder, t, createClient } from "typograph";
+
+const builder = createTypeDefBuilder();
+
+const post = builder.type({
+  id: t.string(),
+  title: t.string(),
+});
+
+const typeDefs = builder.combineTypeDefs([
+  builder.typeDef({
+    Post: post,
+    Query: {
+      getPost: builder.query({
+        input: t.type({ id: t.string().notNull() }),
+        output: t.type<Post>("Post"),
+      }),
+    },
+  }),
+]);
+
+type Post = typeof post;
+
+const client = createClient(typeDefs);
+
+const res = client.query(
+  { getPost: { id: true, title: true } },
+  { variables: { id: "p1" } },
+);
+
+type Result = typeof res.returnType;
+//   ^? { getPost: { id: string; title: string } }
+```
+
+If you change the schema, the call site updates automatically. If you
+remove a field from a type, every place that selected it lights up red
+in your editor. There's no codegen step you need to remember to run.
+
+## Where to next
+
+<Cards>
+  <Card
+    title="Comparison"
+    href="/docs/comparison"
+    description="See how typograph stacks up against codegen tools and other code-first schema builders."
+  />
+  <Card
+    title="Installation"
+    href="/docs/installation"
+    description="Install typograph and the optional integrations."
+  />
+  <Card
+    title="Basic Usage"
+    href="/docs/basic-usage"
+    description="Build a tiny end-to-end app with a schema, a server, and a typed client."
+  />
+</Cards>

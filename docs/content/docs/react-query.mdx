@@ -1,0 +1,221 @@
+---
+title: React Query
+description: Drop-in typed React hooks built on top of TanStack Query.
+---
+
+For React apps that already reach for TanStack Query, typograph ships a
+first-party React Query integration. It gives you typed `useQuery` and
+`useMutation` hooks with no extra wiring — you call them with the same
+selection sets you'd write for the core client, and the variables and
+response types are inferred from your schema.
+
+You don't have to use it. Typograph's core client emits a plain GraphQL
+string and a variables object, so you can pair the schema with **any**
+GraphQL client. The React Query integration is just the shortest path
+to a typed app when TanStack Query is already doing your caching.
+
+## Setup
+
+Install the peer dependency alongside typograph:
+
+```sh
+npm install @tanstack/react-query
+```
+
+The integration lives at `typograph/integrations/react-query` and
+exposes a single factory:
+
+```ts
+import { createReactQueryIntegration } from "typograph/integrations/react-query";
+```
+
+Wire it up once at app boot. React Query doesn't own transport, so you
+supply a `fetcher` that takes a GraphQL string + variables and returns
+the response data:
+
+```ts title="graphql-client.ts"
+import { createReactQueryIntegration } from "typograph/integrations/react-query";
+import { typeDefs } from "./schema";
+
+const GRAPHQL_URL = "http://localhost:3001/graphql";
+
+async function fetcher(
+  query: string,
+  variables: Record<string, any>,
+) {
+  const response = await fetch(GRAPHQL_URL, {
+    method: "POST",
+    headers: { "content-type": "application/json" },
+    body: JSON.stringify({ query, variables }),
+  });
+  const json = await response.json();
+  if (json.errors) {
+    throw new Error(json.errors[0].message);
+  }
+  return json.data;
+}
+
+export const { useQuery, useMutation } = createReactQueryIntegration(
+  typeDefs,
+  { fetcher },
+);
+```
+
+<Callout type="info">
+  The fetcher must throw on GraphQL errors. React Query treats any
+  resolved promise as success — if you return `{ errors, data: null }`
+  silently, your components will see `data: null` with no error state.
+</Callout>
+
+The `fetcher` is the one seam the integration asks for. Plug in
+`fetch`, `graphql-request`, axios, or anything else — typograph stays
+out of the request/response life cycle.
+
+## Using the hooks
+
+Wrap your app in React Query's `QueryClientProvider`, then import the
+hooks from your local `graphql-client.ts` and pass typograph selection
+sets directly. There's no `gql` template literal and no string-based
+query.
+
+```tsx title="App.tsx"
+import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
+import { Posts } from "./Posts";
+
+const queryClient = new QueryClient();
+
+export const App = () => (
+  <QueryClientProvider client={queryClient}>
+    <Posts />
+  </QueryClientProvider>
+);
+```
+
+```tsx title="Posts.tsx"
+import { args } from "typograph";
+import { useQueryClient } from "@tanstack/react-query";
+import { useQuery, useMutation } from "./graphql-client";
+
+export const Posts = () => {
+  const queryClient = useQueryClient();
+
+  // Query with a nested field arg — `commentLimit` is a top-level variable.
+  const { data } = useQuery(
+    {
+      listPosts: {
+        id: true,
+        title: true,
+        comments: args({ limit: "$commentLimit" }, { id: true, body: true }),
+      },
+    },
+    { variables: { commentLimit: 5 } },
+  );
+
+  // Mutation — typed against the schema's input shape.
+  const { mutate: createPost } = useMutation(
+    { createPost: { id: true, title: true } },
+    {
+      onSuccess: () => {
+        // Invalidate any cached `listPosts` queries so the list re-fetches.
+        queryClient.invalidateQueries();
+      },
+    },
+  );
+
+  return (
+    <>
+      {data?.listPosts.map((p) => (
+        <article key={p.id}>
+          <h2>{p.title}</h2>
+          <ul>
+            {p.comments.map((c) => (
+              <li key={c.id}>{c.body}</li>
+            ))}
+          </ul>
+        </article>
+      ))}
+      <button onClick={() => createPost({ title: "Hello", body: "World" })}>
+        New post
+      </button>
+    </>
+  );
+};
+```
+
+`data?.listPosts`, the `createPost` arguments, and everything in
+between are typed directly from the selection set. There's no codegen
+and no manual response types.
+
+## Passthrough options
+
+Every option React Query's own `useQuery` and `useMutation` accept
+flows through. The integration only owns `queryKey`, `queryFn`, and
+`mutationFn` — pass anything else and it reaches the underlying hook
+untouched:
+
+```tsx
+const { data } = useQuery(
+  { listPosts: { id: true, title: true } },
+  {
+    staleTime: 30_000,
+    refetchInterval: 60_000,
+    enabled: shouldFetch,
+  },
+);
+```
+
+The default `queryKey` is `[graphqlString, variables]` — deterministic
+per selection + variables pair, so two call sites with the same shape
+share a cache entry. Override it for custom invalidation schemes:
+
+```tsx
+const { data } = useQuery(
+  { listPosts: { id: true } },
+  {
+    variables: { filter: "published" },
+    queryKey: ["posts", "published"],
+  },
+);
+
+// Later, invalidate by your own key:
+queryClient.invalidateQueries({ queryKey: ["posts"] });
+```
+
+## Subscriptions
+
+React Query has no `useSubscription` primitive — its model is
+request/response with caching, not long-lived streams. This integration
+intentionally ships only `useQuery` and `useMutation`.
+
+If you need GraphQL subscriptions, reach for the
+[urql](./urql) or [Apollo](./apollo) integration (both ship typed
+`useSubscription`), or drop to the core client and hand
+`res.toGraphQL()` + `res.variables` to your own SSE or WebSocket
+transport — see [Use it with anything](./any-client). Subscriptions
+can coexist with React Query in the same app; they live on a
+different hook tree.
+
+## Where to next
+
+<Cards>
+  <Card
+    title="urql"
+    href="/docs/urql"
+    description="First-party React hooks built on urql — includes typed subscriptions."
+  />
+  <Card
+    title="Apollo Client"
+    href="/docs/apollo"
+    description="First-party React hooks built on Apollo Client."
+  />
+  <Card
+    title="graphql-yoga"
+    href="/docs/graphql-yoga"
+    description="Wire up the server side of your typograph app."
+  />
+  <Card
+    title="Use it with anything"
+    href="/docs/any-client"
+    description="Pair typograph with graphql-request, fetch, or your own client."
+  />
+</Cards>

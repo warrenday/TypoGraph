@@ -1,0 +1,99 @@
+---
+title: graphql-yoga
+description: Run a real GraphQL server with typograph schemas and typed resolvers.
+---
+
+Typograph emits standard SDL via `typeDefs.toSDL()`, and its
+resolvers follow graphql-js's `(source, args, context, info)` calling
+convention — so the schema plugs straight into any GraphQL server
+that accepts SDL plus a resolver map. This page shows the
+recommended wiring for
+[graphql-yoga](https://the-guild.dev/graphql/yoga-server), which is
+what the demo app uses — but the same pattern works with any
+graphql-js–based server (`@graphql-tools/schema`, vanilla
+`graphql.execute`, Apollo Server, etc.).
+
+Typograph isn't tied to graphql-yoga specifically. Use it with
+whichever server you already like.
+
+## Install
+
+```bash
+npm install graphql-yoga
+```
+
+## Minimal server
+
+Hand `typeDefs.toSDL()` and your resolvers straight to `createSchema`
+— no adapter, no shuffling of arguments:
+
+```ts title="server.ts"
+import { createServer } from "http";
+import { createYoga, createSchema } from "graphql-yoga";
+import { typeDefs } from "./schema";
+import { resolvers } from "./resolvers";
+
+createServer(
+  createYoga({
+    schema: createSchema({
+      typeDefs: typeDefs.toSDL(),
+      resolvers,
+    }),
+  }),
+).listen(3001);
+```
+
+Because `Resolvers<TypeDefs>` is structurally compatible with yoga's
+`IResolvers`, the typed object drops in as-is. If TypeScript
+complains at the `createSchema` boundary — usually because yoga's
+index-signature-shaped `IResolvers` doesn't line up perfectly with
+typograph's conditional keys — cast at that single site:
+
+```ts
+resolvers: resolvers as Parameters<typeof createSchema>[0]["resolvers"],
+```
+
+## Subscriptions
+
+graphql-yoga supports subscriptions out of the box over Server-Sent
+Events. You don't need any extra config on the server — just declare
+the subscription in your schema, return an `AsyncIterable` from
+`subscribe`, and graphql-yoga takes care of the wire format.
+
+```ts title="resolvers.ts"
+import type { Resolvers } from "typograph";
+import type { TypeDefs } from "./schema";
+
+export const resolvers: Resolvers<TypeDefs> = {
+  Subscription: {
+    postCreated: {
+      subscribe: (_source, _args) => pubsub.subscribe("postCreated"),
+      resolve: (payload) => payload,
+    },
+  },
+};
+```
+
+For the **client** side of SSE subscriptions, see the
+[urql](/docs/urql#subscriptions-over-sse) or
+[Apollo](/docs/apollo#subscriptions) integration pages.
+
+## Where to next
+
+<Cards>
+  <Card
+    title="React integrations"
+    href="/docs/urql"
+    description="Drop-in typed hooks for urql, Apollo Client, or React Query."
+  />
+  <Card
+    title="Resolvers"
+    href="/docs/resolvers"
+    description="Reference for the Resolvers<TypeDefs> type."
+  />
+  <Card
+    title="Next.js example"
+    href="/docs/nextjs"
+    description="A full app showing typograph end-to-end in Next.js."
+  />
+</Cards>

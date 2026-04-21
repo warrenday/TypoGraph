@@ -1,0 +1,229 @@
+---
+title: Next.js
+description: A full Next.js app with a typograph schema, route handlers, and typed React components.
+---
+
+This guide walks through using typograph in a Next.js app router
+project. The same `typeDefs` object powers the API route on the
+server, the resolvers, and the React components on the client — and
+nothing in your repo is generated.
+
+## What we're building
+
+A tiny posts app with one query, one mutation, a server-side route
+handler that runs graphql-yoga, and a React component on the client
+that uses the urql integration.
+
+The pieces:
+
+- `lib/schema.ts` — the typograph schema (shared by everything).
+- `lib/resolvers.ts` — the typed resolvers.
+- `app/api/graphql/route.ts` — the Next.js route handler.
+- `lib/urql-client.ts` — the urql client + typograph integration.
+- `app/page.tsx` — the React component that consumes the API.
+
+## 1. Install dependencies
+
+```bash
+npm install typograph graphql graphql-yoga urql
+```
+
+## 2. Define the schema
+
+```ts title="lib/schema.ts"
+import { createTypeDefBuilder, t } from "typograph";
+
+const builder = createTypeDefBuilder();
+
+const post = builder.type({
+  id: t.string(),
+  title: t.string(),
+  body: t.string(),
+});
+
+export const typeDefs = builder.combineTypeDefs([
+  builder.typeDef({
+    Post: post,
+    Query: {
+      listPosts: builder.query({
+        input: t.type({}),
+        output: t.type<Post[]>("[Post]"),
+      }),
+    },
+    Mutation: {
+      createPost: builder.mutation({
+        input: t.type({
+          title: t.string().notNull(),
+          body: t.string().notNull(),
+        }),
+        output: t.type<Post>("Post"),
+      }),
+    },
+  }),
+]);
+
+export type Post = typeof post;
+export type TypeDefs = typeof typeDefs;
+```
+
+## 3. Write the resolvers
+
+```ts title="lib/resolvers.ts"
+import type { Resolvers } from "typograph";
+import type { TypeDefs } from "./schema";
+
+const posts: Array<{ id: string; title: string; body: string }> = [];
+
+export const resolvers: Resolvers<TypeDefs> = {
+  Query: {
+    listPosts: (_source, _args) => posts,
+  },
+  Mutation: {
+    createPost: (_source, { title, body }) => {
+      const post = { id: String(posts.length + 1), title, body };
+      posts.push(post);
+      return post;
+    },
+  },
+};
+```
+
+## 4. Mount the route handler
+
+Next.js's app router lets you serve a GraphQL endpoint from a
+regular route file. graphql-yoga has a built-in `fetch`-style
+handler that works with `Request` / `Response`.
+
+```ts title="app/api/graphql/route.ts"
+import { createSchema, createYoga } from "graphql-yoga";
+import { typeDefs } from "@/lib/schema";
+import { resolvers } from "@/lib/resolvers";
+
+const { handleRequest } = createYoga<{
+  req: Request;
+}>({
+  schema: createSchema({
+    typeDefs: typeDefs.toSDL(),
+    resolvers,
+  }),
+  graphqlEndpoint: "/api/graphql",
+  fetchAPI: { Response },
+});
+
+export const GET = handleRequest;
+export const POST = handleRequest;
+```
+
+## 5. Set up the urql client
+
+```ts title="lib/urql-client.ts"
+"use client";
+
+import { Client, cacheExchange, fetchExchange } from "urql";
+import { createUrqlIntegration } from "typograph/integrations/urql";
+import { typeDefs } from "./schema";
+
+export const client = new Client({
+  url: "/api/graphql",
+  exchanges: [cacheExchange, fetchExchange],
+});
+
+export const { useQuery, useMutation } =
+  createUrqlIntegration(typeDefs);
+```
+
+The `"use client"` directive at the top is what tells Next.js this
+file runs on the client. Your server code can keep importing the
+schema and resolvers as normal — only the urql wiring needs to be
+client-side.
+
+## 6. Wrap the app with the urql Provider
+
+```tsx title="app/providers.tsx"
+"use client";
+
+import { Provider } from "urql";
+import { client } from "@/lib/urql-client";
+
+export const Providers = ({ children }: { children: React.ReactNode }) => (
+  <Provider value={client}>{children}</Provider>
+);
+```
+
+```tsx title="app/layout.tsx"
+import { Providers } from "./providers";
+
+export default function RootLayout({
+  children,
+}: {
+  children: React.ReactNode;
+}) {
+  return (
+    <html lang="en">
+      <body>
+        <Providers>{children}</Providers>
+      </body>
+    </html>
+  );
+}
+```
+
+## 7. Use the typed hooks in a component
+
+```tsx title="app/page.tsx"
+"use client";
+
+import { useQuery, useMutation } from "@/lib/urql-client";
+
+export default function Home() {
+  const [{ data, fetching }] = useQuery({
+    listPosts: { id: true, title: true, body: true },
+  });
+
+  const [, createPost] = useMutation({
+    createPost: { id: true, title: true },
+  });
+
+  if (fetching) return <p>Loading…</p>;
+
+  return (
+    <main>
+      <ul>
+        {data?.listPosts.map((p) => (
+          <li key={p.id}>
+            <strong>{p.title}</strong> — {p.body}
+          </li>
+        ))}
+      </ul>
+      <button onClick={() => createPost({ title: "Hello", body: "World" })}>
+        New post
+      </button>
+    </main>
+  );
+}
+```
+
+That's the whole loop. The schema is defined once in
+`lib/schema.ts`, and every other file — server route, resolvers,
+React component — pulls types from it. Add a field to `Post` and
+every consumer in the project lights up red until you handle it.
+
+## Where to next
+
+<Cards>
+  <Card
+    title="urql"
+    href="/docs/urql"
+    description="Reference for the urql integration, including SSE subscriptions."
+  />
+  <Card
+    title="graphql-yoga"
+    href="/docs/graphql-yoga"
+    description="Wire up the server side of any typograph app."
+  />
+  <Card
+    title="Field arguments"
+    href="/docs/field-arguments"
+    description="The args() helper for nested arguments and disambiguation."
+  />
+</Cards>

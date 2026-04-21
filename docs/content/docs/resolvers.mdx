@@ -1,0 +1,244 @@
+---
+title: Resolvers
+description: Type your server-side resolvers from the same schema object.
+---
+
+The `Resolvers<TypeDefs>` type is the server side of typograph. It
+takes the same schema object you use on the client and gives you a
+fully-typed resolver shape — so when you change a field, every
+resolver that touches it lights up red in your editor.
+
+```ts
+import type { Resolvers } from "typograph";
+import type { TypeDefs } from "./schema";
+
+const resolvers: Resolvers<TypeDefs> = {
+  Query: { /* ... */ },
+  Mutation: { /* ... */ },
+  Subscription: { /* ... */ },
+  Post: { /* ... */ },
+};
+```
+
+Every resolver follows graphql-js's `(source, args, context, info)`
+calling convention, so the object you define here plugs straight into
+`@graphql-tools/schema`, graphql-yoga, Apollo Server, or any other
+graphql-js-compatible runtime with no adapter.
+
+## Root operation resolvers
+
+Root `Query`, `Mutation`, and `Subscription` resolvers receive the
+four standard graphql-js arguments: `source` (the rootValue passed to
+`execute()`, almost always `undefined`), `args` (the typed operation
+input), `context`, and `info`.
+
+```ts
+const resolvers: Resolvers<TypeDefs> = {
+  Query: {
+    listPosts: (_source, _args) => db.posts.all(),
+    getPost: (_source, { id }) => db.posts.findById(id),
+    //                    ^? string
+    searchPosts: (_source, { query, limit }) => db.posts.search(query, limit),
+    //                        ^? string, number
+  },
+  Mutation: {
+    createPost: (_source, { title, body }) => db.posts.create({ title, body }),
+    //                       ^? string, string
+  },
+};
+```
+
+The `args` are typed straight from the operation's `input` declaration
+in the schema. Add a new field to an input map and every resolver that
+consumes it gets a compile error immediately.
+
+## Typing context
+
+`Resolvers` is generic on a context type. Pass it in to get
+fully-typed access to whatever your server attaches per request (the
+authenticated user, a request-scoped database transaction, a
+DataLoader bag, etc.):
+
+```ts
+type AppContext = {
+  userId: string;
+  loaders: { postLoader: DataLoader<string, Post> };
+};
+
+const resolvers: Resolvers<TypeDefs, AppContext> = {
+  Query: {
+    getPost: (_source, { id }, context) =>
+      context.loaders.postLoader.load(id),
+  },
+  Mutation: {
+    createPost: (_source, { title, body }, context) =>
+      db.posts.create({ authorId: context.userId, title, body }),
+  },
+};
+```
+
+The `Context` generic defaults to `unknown`, so code that doesn't care
+about context can keep writing `Resolvers<TypeDefs>`. Reaching for a
+field on an `unknown` context will fail to compile — a deliberate
+nudge to pass the type in once you start using it.
+
+## Type-field resolvers
+
+Type-field resolvers are the ones that compute fields off an existing
+parent — `Post.excerpt`, `Post.comments`, `User.fullName`, that kind
+of thing. They receive `(parent, args, context, info)`, all typed
+from the schema.
+
+### Plain fields
+
+A plain field declared with a scalar helper just uses the `parent`
+argument:
+
+```ts
+const resolvers: Resolvers<TypeDefs> = {
+  Post: {
+    // parent is typed as `Post`, inferred from the schema definition
+    excerpt: (parent) => parent.body.slice(0, 100),
+  },
+};
+```
+
+Because graphql-js passes an args object to every field (empty when
+the field declares no arguments), you can ignore the trailing
+parameters and just declare `parent` — TypeScript accepts it.
+
+### Fields with their own arguments
+
+Fields declared via `builder.field({ input, output })` get a typed
+`args` parameter that matches the input map you declared on the
+schema.
+
+```ts
+// schema.ts
+const post = builder.type({
+  id: t.string(),
+  comments: builder.field({
+    input: { limit: t.int() },
+    output: () => t.type<Comment[]>("[Comment]"),
+  }),
+});
+
+// resolvers.ts
+const resolvers: Resolvers<TypeDefs> = {
+  Post: {
+    comments: (parent, args) => {
+      //              ^? { limit?: number }
+      const all = db.comments.whereParent(parent.id);
+      return typeof args.limit === "number" ? all.slice(0, args.limit) : all;
+    },
+  },
+};
+```
+
+<Callout type="info">
+  Only fields declared with `builder.field(...)` get a typed `args`.
+  Plain fields still have an args slot — graphql-js always passes one
+  — but it's typed as `{}`. The type system picks the right shape for
+  you automatically.
+</Callout>
+
+## Subscription resolvers
+
+Subscription resolvers use the `{ subscribe, resolve? }` shape that
+graphql-js expects natively. Both halves follow the full calling
+convention: `subscribe: (source, args, context, info)` and
+`resolve: (payload, args, context, info)`.
+
+```ts
+const resolvers: Resolvers<TypeDefs> = {
+  Subscription: {
+    postCreated: {
+      subscribe: (_source, _args) => pubsub.subscribe("postCreated"),
+      resolve: (payload) => payload,
+    },
+    commentAdded: {
+      subscribe: (_source, { postId }) =>
+        //                    ^? string
+        pubsub.subscribeFilter("commentAdded", (c) => c.postId === postId),
+    },
+  },
+};
+```
+
+The `resolve` callback is optional — if you leave it out, graphql-js
+uses the payload value directly.
+
+## Return shapes
+
+Return types are checked against the schema's output declaration,
+but the check is intentionally loose. `DeepPartial` is applied so
+you can return richer objects (e.g. database rows with extra
+columns) without having to strip them down to match the schema
+exactly. Typograph only complains if a **required** field is missing
+or the wrong type.
+
+```ts
+Post: {
+  title: (parent) => parent.title.toUpperCase(), // OK
+  // ERROR — title must be a string
+  title: (parent) => parent.id.length,
+},
+```
+
+## Strict typing for parent values
+
+`Resolvers<TypeDefs>` is intentionally strict on the **parent** side
+— it won't let a resolver claim properties the schema doesn't expose.
+If your backing store has extra columns (foreign keys, audit
+fields), cast through `unknown` inside the resolver:
+
+```ts
+Comment: {
+  post: (comment) => {
+    // Comment.postId isn't on the GraphQL Comment type, so TypeScript
+    // wouldn't let us read it directly. Cast through `unknown` to
+    // acknowledge that the row carries extra data.
+    const postId = (comment as unknown as { postId: string }).postId;
+    return db.posts.findById(postId);
+  },
+},
+```
+
+In a real app you'd usually expose the join key on the GraphQL type
+so the cast disappears — but the escape hatch is there if you need
+it.
+
+## Wiring into a server
+
+Typograph's resolver shape matches graphql-js exactly, so the
+resolvers object plugs straight into graphql-yoga's `createSchema`
+with no adapter:
+
+```ts
+import { createSchema } from "graphql-yoga";
+import { typeDefs } from "./schema";
+import { resolvers } from "./resolvers";
+
+export const executableSchema = createSchema({
+  typeDefs: typeDefs.toSDL(),
+  resolvers,
+});
+```
+
+The [graphql-yoga integration page](/docs/graphql-yoga) walks through
+a full server setup.
+
+## Where to next
+
+<Cards>
+  <Card
+    title="graphql-yoga"
+    href="/docs/graphql-yoga"
+    description="Wire your typed resolvers into a real GraphQL server."
+  />
+  <Card
+    title="Schemas"
+    href="/docs/schemas"
+    description="Reference for every schema-builder helper."
+  />
+</Cards>

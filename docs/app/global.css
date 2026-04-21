@@ -1,0 +1,164 @@
+@import "tailwindcss";
+@import "fumadocs-ui/css/black.css";
+@import "fumadocs-ui/css/preset.css";
+
+@source "../node_modules/fumadocs-ui/dist/**/*.js";
+
+:root {
+  --radius: 0.2rem;
+  --scrollbar-thumb: var(--color-fd-border);
+  --scrollbar-thumb-hover: var(--color-fd-ring);
+  --scrollbar-track: transparent;
+}
+
+html {
+  scrollbar-gutter: stable;
+  scroll-behavior: auto;
+}
+
+html:not([data-anchor-scrolling]) {
+  scroll-behavior: smooth;
+}
+
+body {
+  background: var(--color-fd-background);
+  color: var(--color-fd-foreground);
+}
+
+body ::selection {
+  background: var(--color-fd-foreground);
+  color: var(--color-fd-background);
+}
+
+/* Thin, subtle scrollbars */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: var(--scrollbar-thumb) var(--scrollbar-track);
+}
+
+::-webkit-scrollbar {
+  width: 12px;
+  height: 12px;
+}
+::-webkit-scrollbar-track {
+  background: var(--scrollbar-track);
+}
+::-webkit-scrollbar-thumb {
+  background-color: var(--scrollbar-thumb);
+  border-radius: 9999px;
+  border: 3px solid transparent;
+  background-clip: content-box;
+}
+::-webkit-scrollbar-thumb:hover {
+  background-color: var(--scrollbar-thumb-hover);
+}
+::-webkit-scrollbar-corner {
+  background: transparent;
+}
+
+/* Code blocks — sharp corners, flat near-black in dark mode */
+figure:has(.shiki),
+figure.shiki,
+[data-slot="tabs"]:has(.shiki),
+.bg-fd-card:has(.shiki) {
+  border-radius: 0 !important;
+  overflow: hidden;
+}
+
+figure.shiki > div:first-child,
+[role="tablist"]:has(+ [role="tabpanel"] .shiki),
+[role="tablist"]:has(+ div .shiki) {
+  border-radius: 0 !important;
+}
+
+[role="tabpanel"]:has(.shiki),
+[role="tabpanel"] .shiki {
+  border-radius: 0 !important;
+}
+
+.dark .shiki,
+.dark figure.shiki,
+.dark figure:has(pre),
+.dark [role="tabpanel"]:has(.shiki),
+.dark [role="tabpanel"] .shiki,
+.dark .bg-fd-card:has(.shiki),
+.dark [data-slot="tabs"]:has(.shiki),
+.dark div:has(> [role="tablist"]):has(.shiki),
+.dark .bg-\(--shiki-dark-bg\),
+.dark [class*="bg-(--shiki-dark-bg)"] {
+  background-color: #050505 !important;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+.dark [role="tabpanel"] .shiki {
+  border: none;
+  box-shadow: none;
+}
+
+.dark figure.shiki > div:first-child,
+.dark [role="tablist"]:has(+ [role="tabpanel"] .shiki),
+.dark [role="tablist"]:has(+ div .shiki) {
+  background: transparent;
+  border-color: rgba(255, 255, 255, 0.06);
+}
+
+/* Docs footer nav (prev/next) — sharp, monospaced, dashed dividers */
+#nd-page article > div.\@container {
+  gap: 0;
+  border-top: 1px dashed
+    color-mix(in oklch, var(--color-fd-foreground) 8%, transparent);
+  padding-top: 0;
+  padding-bottom: 2rem;
+  margin-top: 3rem;
+}
+
+#nd-page article > div.\@container > a {
+  border-radius: 0;
+  border: none;
+  border-bottom: 1px dashed
+    color-mix(in oklch, var(--color-fd-foreground) 8%, transparent);
+  padding: 1.25rem 1.5rem;
+  font-family: var(--font-mono, ui-monospace, monospace);
+  background: transparent;
+  transition: all 200ms ease;
+  position: relative;
+}
+
+#nd-page article > div.\@container > a:first-child {
+  border-right: 1px dashed
+    color-mix(in oklch, var(--color-fd-foreground) 8%, transparent);
+}
+
+#nd-page article > div.\@container > a:hover {
+  background: color-mix(in oklch, var(--color-fd-foreground) 3%, transparent);
+  border-color: color-mix(in oklch, var(--color-fd-foreground) 15%, transparent);
+  border-style: solid;
+}
+
+#nd-page article > div.\@container > a div {
+  gap: 0.5rem;
+  font-weight: 400;
+}
+
+#nd-page article > div.\@container > a div p {
+  font-size: 12px;
+  letter-spacing: 0.02em;
+}
+
+#nd-page article > div.\@container > a div svg {
+  width: 12px;
+  height: 12px;
+  opacity: 0.45;
+  transition: opacity 200ms ease;
+}
+
+#nd-page article > div.\@container > a:hover div svg {
+  opacity: 0.8;
+}
+
+#nd-page article > div.\@container > a > p {
+  font-size: 11px;
+  opacity: 0.5;
+  font-family: var(--font-sans, ui-sans-serif, system-ui, sans-serif);
+  letter-spacing: 0;
+}

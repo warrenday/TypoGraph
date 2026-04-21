@@ -1,0 +1,233 @@
+---
+title: urql
+description: Drop-in typed React hooks built on top of urql.
+---
+
+For React apps, typograph ships a first-party urql integration. It
+gives you typed `useQuery`, `useMutation`, and `useSubscription`
+hooks with no extra wiring — you call them with the same selection
+sets you'd write for the core client, and the variables and response
+types are inferred from your schema.
+
+You don't have to use it. Typograph's core client emits a plain
+GraphQL string and a variables object, so you can pair the schema
+with **any** GraphQL client. The urql integration is just the
+shortest path to a typed React app.
+
+## Setup
+
+The integration lives at `typograph/integrations/urql` and exposes a
+single factory:
+
+```ts
+import { createUrqlIntegration } from "typograph/integrations/urql";
+```
+
+Wire it up once at app boot, alongside your urql `Client`:
+
+```ts title="urql-client.ts"
+import { Client, cacheExchange, fetchExchange } from "urql";
+import { createUrqlIntegration } from "typograph/integrations/urql";
+import { typeDefs } from "./schema";
+
+export const client = new Client({
+  url: "http://localhost:3001/graphql",
+  exchanges: [cacheExchange, fetchExchange],
+});
+
+export const { useQuery, useMutation, useSubscription } =
+  createUrqlIntegration(typeDefs);
+```
+
+The integration hands typograph the schema, which is what gives the
+hooks their typed selection sets. The urql `Client` itself still
+handles transport, caching, and provider context — typograph only
+owns the type bridge.
+
+## Using the hooks
+
+Components import the hooks from your local `urql-client.ts` and
+pass typograph selection sets directly. There's no `gql` template
+literal and no string-based query.
+
+```tsx title="Posts.tsx"
+import { args } from "typograph";
+import { useQuery, useMutation, useSubscription } from "./urql-client";
+
+export const Posts = () => {
+  // Query with a nested field arg — `commentLimit` is a top-level variable.
+  const [{ data }] = useQuery(
+    {
+      listPosts: {
+        id: true,
+        title: true,
+        comments: args({ limit: "$commentLimit" }, { id: true, body: true }),
+      },
+    },
+    { variables: { commentLimit: 5 } },
+  );
+
+  // Mutation — typed against the schema's input shape.
+  const [, createPost] = useMutation({
+    createPost: { id: true, title: true },
+  });
+
+  // Subscription — returns urql's native [state, reexecute] tuple.
+  const [{ data: feed }] = useSubscription({
+    postCreated: { id: true, title: true },
+  });
+
+  return (
+    <>
+      {data?.listPosts.map((p) => (
+        <article key={p.id}>
+          <h2>{p.title}</h2>
+          <ul>
+            {p.comments.map((c) => (
+              <li key={c.id}>{c.body}</li>
+            ))}
+          </ul>
+        </article>
+      ))}
+      <button onClick={() => createPost({ title: "Hello", body: "World" })}>
+        New post
+      </button>
+    </>
+  );
+};
+```
+
+`data?.listPosts`, the `createPost` arguments, and `feed` are all
+typed directly from the selection set. There's no codegen and no
+manual response types.
+
+Don't forget to wrap your app in urql's `Provider`:
+
+```tsx title="App.tsx"
+import { Provider } from "urql";
+import { client } from "./urql-client";
+import { Posts } from "./Posts";
+
+export const App = () => (
+  <Provider value={client}>
+    <Posts />
+  </Provider>
+);
+```
+
+## Subscriptions over SSE
+
+graphql-yoga serves subscriptions over `text/event-stream` using
+**named** events (`event: next`, `event: complete`) rather than the
+default unnamed `message` event the browser's `EventSource` listens
+to via `.onmessage`. You have to attach explicit listeners for `next`
+and `complete` for payloads to reach urql's sink.
+
+Here's a dependency-free SSE exchange that speaks graphql-yoga's
+dialect:
+
+```ts title="urql-client.ts (continued)"
+import {
+  Client,
+  cacheExchange,
+  fetchExchange,
+  subscriptionExchange,
+} from "urql";
+
+const GRAPHQL_URL = "http://localhost:3001/graphql";
+
+export const client = new Client({
+  url: GRAPHQL_URL,
+  exchanges: [
+    cacheExchange,
+    fetchExchange,
+    subscriptionExchange({
+      forwardSubscription: (request) => ({
+        subscribe: (sink) => {
+          const url = new URL(GRAPHQL_URL);
+          if (request.query) {
+            url.searchParams.set("query", request.query);
+          }
+          if (
+            request.variables &&
+            Object.keys(request.variables).length > 0
+          ) {
+            url.searchParams.set(
+              "variables",
+              JSON.stringify(request.variables),
+            );
+          }
+
+          const es = new EventSource(url.toString());
+
+          const handleNext = (event: MessageEvent) => {
+            try {
+              sink.next(JSON.parse(event.data));
+            } catch (err) {
+              sink.error(err);
+            }
+          };
+          const handleComplete = () => {
+            sink.complete();
+            es.close();
+          };
+          const handleError = () => {
+            sink.error(new Error("Subscription connection error"));
+          };
+
+          es.addEventListener("next", handleNext);
+          es.addEventListener("complete", handleComplete);
+          es.addEventListener("error", handleError);
+
+          return {
+            unsubscribe: () => {
+              es.removeEventListener("next", handleNext);
+              es.removeEventListener("complete", handleComplete);
+              es.removeEventListener("error", handleError);
+              es.close();
+            },
+          };
+        },
+      }),
+    }),
+  ],
+});
+```
+
+<Callout type="info">
+  A production app would usually reach for `graphql-sse` or
+  `graphql-ws` instead of rolling its own client. The example above
+  stays dependency-free so the demo can run as-is, but anything that
+  implements urql's `forwardSubscription` Observable contract will
+  work.
+</Callout>
+
+## Where to next
+
+<Cards>
+  <Card
+    title="Apollo Client"
+    href="/docs/apollo"
+    description="First-party React hooks built on Apollo Client."
+  />
+  <Card
+    title="React Query"
+    href="/docs/react-query"
+    description="First-party hooks for apps already using TanStack Query."
+  />
+  <Card
+    title="graphql-yoga"
+    href="/docs/graphql-yoga"
+    description="Wire up the server side of your typograph app."
+  />
+  <Card
+    title="Use it with anything"
+    href="/docs/any-client"
+    description="Pair typograph with graphql-request, fetch, or your own client."
+  />
+  <Card
+    title="Next.js example"
+    href="/docs/nextjs"
+    description="A full app showing typograph end-to-end in Next.js."
+  />
+</Cards>

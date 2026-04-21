@@ -1,0 +1,303 @@
+---
+title: Schemas
+description: Define your GraphQL schema in plain TypeScript with the typograph builder.
+---
+
+A typograph schema is a normal TypeScript object. You build it with a
+few small helpers — `createTypeDefBuilder`, the `t` shorthand for
+scalars, and a handful of methods on the builder for declaring types
+and operations. There's no separate `.graphql` file, no decorators,
+and no codegen.
+
+This page is the reference for every helper. If this is your first
+time, the [Basic Usage](/docs/basic-usage) walkthrough is a gentler
+intro.
+
+## Creating a builder
+
+```ts
+import { createTypeDefBuilder, t } from "typograph";
+
+const builder = createTypeDefBuilder();
+```
+
+You only need one builder per project (or one per "slice" of a large
+schema you're splitting across files).
+
+The builder gives you these methods:
+
+| Method                    | What it's for                                        |
+| ------------------------- | ---------------------------------------------------- |
+| `builder.type`            | Declare an object type                               |
+| `builder.query`           | Declare a Query root field                           |
+| `builder.mutation`        | Declare a Mutation root field                        |
+| `builder.subscription`    | Declare a Subscription root field                    |
+| `builder.field`           | Declare a field that takes its own arguments         |
+| `builder.inputType`       | Declare a GraphQL `input` object type                |
+| `builder.typeDef`         | Group types and operations into a single block       |
+| `builder.combineTypeDefs` | Merge multiple typeDef blocks into the final schema  |
+
+## The `t` shorthand
+
+`t` is the small helper you use anywhere a type is expected. It
+covers the four built-in scalars, the non-null modifier, default
+values, and references to named types.
+
+### Scalars
+
+```ts
+import { t } from "typograph";
+
+t.string();  // String
+t.int();     // Int
+t.boolean(); // Boolean
+t.id();      // ID
+```
+
+### Non-null
+
+```ts
+t.string().notNull(); // String!
+```
+
+### Default values
+
+Pass a `default` to any scalar to make the variable optional in your
+client calls. Typograph emits the default in the operation header
+(`$order: String = "newest"`) and graphql-js fills it in for you.
+
+```ts
+t.string({ default: "newest" });
+t.int({ default: 10 });
+t.boolean({ default: false });
+t.id({ default: "root" });
+```
+
+<Callout type="info">
+  Defaults are supported on the four scalar helpers. Defaulted lists
+  and input objects aren't supported yet — declare them without a
+  default if you need those shapes today.
+</Callout>
+
+### Inline object types (used for inputs)
+
+```ts
+t.type({
+  id: t.string().notNull(),
+  limit: t.int(),
+});
+```
+
+### Named type references
+
+When you need to refer to a named type — your own `Post`, a list of
+posts, a non-null user — use `t.type<T>(name)`. The TypeScript generic
+carries the static type, and the string carries the SDL syntax.
+
+```ts
+t.type<Post>("Post");
+t.type<Post[]>("[Post]");
+t.type<string[]>("[String!]!");
+```
+
+<Callout type="warn">
+  Typograph doesn't validate that the TypeScript generic matches the
+  runtime string — `t.type<User>("Post")` will compile. Keep the two
+  in sync, or rely on `typeof post` to derive the type from the
+  builder so there's no duplication.
+
+  The string itself *is* validated for syntax at `combineTypeDefs()`
+  time: typos like `t.type<Post>("[Post")` or `t.type<Post>("Post User")`
+  throw with a clear message pointing at the offending string, rather
+  than producing invalid SDL that only fails when the server boots.
+</Callout>
+
+## Object types
+
+Use `builder.type` to declare an object type. The keys are field
+names, and the values are scalar helpers, references to other types,
+or thunks (more on those in a moment).
+
+```ts
+const user = builder.type({
+  id: t.string(),
+  name: t.string(),
+  email: t.string().notNull(),
+});
+
+type User = typeof user;
+```
+
+## Circular references
+
+When two types refer to each other, wrap the cross-type field in a
+thunk so typograph can resolve it lazily.
+
+```ts
+const comment = builder.type({
+  id: t.string(),
+  post: () => t.type<Post>("Post"),
+});
+
+const post = builder.type({
+  id: t.string(),
+  comments: () => t.type<Comment[]>("[Comment]"),
+});
+
+type Post = typeof post;
+type Comment = typeof comment;
+```
+
+The thunk is the same pattern you'd use for any bidirectional type
+reference in TypeScript. At runtime, typograph invokes the thunk when
+it builds the SDL; at the type level, the return type is unwrapped
+automatically.
+
+## Operations: query, mutation, subscription
+
+Root operations all use the same `{ input, output }` shape.
+
+```ts
+builder.query({
+  input: t.type({ id: t.string().notNull() }),
+  output: t.type<Post>("Post"),
+});
+
+builder.mutation({
+  input: t.type({ title: t.string().notNull() }),
+  output: t.type<Post>("Post"),
+});
+
+builder.subscription({
+  input: t.type({}),
+  output: t.type<Post>("Post"),
+});
+```
+
+If the operation takes no arguments, pass an empty `t.type({})`.
+
+## Field arguments
+
+Most fields don't need their own arguments — but sometimes you want
+something like `Post.comments(limit: Int): [Comment]`. Use
+`builder.field` for that:
+
+```ts
+const post = builder.type({
+  id: t.string(),
+  title: t.string(),
+  comments: builder.field({
+    input: { limit: t.int() },
+    output: () => t.type<Comment[]>("[Comment]"),
+  }),
+});
+```
+
+This declares the field's own input map, which is then typed all the
+way through to the resolver and the client. On the client side, you
+bind the argument with the [`args(...)`](/docs/selection-sets#field-arguments-with-args)
+helper. On the resolver side, the second `args` parameter is typed
+from the same input map.
+
+## Input object types
+
+For richer input shapes, use `builder.inputType` to declare a
+proper GraphQL `input` object.
+
+```ts
+const createPostInput = builder.inputType<{
+  title: string;
+  body: string;
+}>({
+  title: t.string().notNull(),
+  body: t.string().notNull(),
+});
+```
+
+Then reference it by name on the operation that consumes it:
+
+```ts
+builder.mutation({
+  input: t.type({
+    input: t.type<CreatePostInput>("CreatePostInput!"),
+  }),
+  output: t.type<Post>("Post"),
+});
+```
+
+And include the input type in your typeDef so it ends up in the SDL:
+
+```ts
+builder.typeDef({
+  CreatePostInput: createPostInput,
+  Mutation: {
+    createPost: /* ... */,
+  },
+});
+```
+
+## Grouping with `typeDef`
+
+`builder.typeDef` groups your types and operations into a single
+block. The keys `Query`, `Mutation`, and `Subscription` are treated
+specially — they become the root operation fields. Every other key
+becomes an object type definition in the emitted SDL.
+
+```ts
+builder.typeDef({
+  Post: post,
+  Comment: comment,
+  Query: {
+    listPosts: builder.query({ /* ... */ }),
+    getPost: builder.query({ /* ... */ }),
+  },
+  Mutation: {
+    createPost: builder.mutation({ /* ... */ }),
+  },
+  Subscription: {
+    postCreated: builder.subscription({ /* ... */ }),
+  },
+});
+```
+
+## Combining schemas across files
+
+Larger schemas usually want to live in more than one file.
+`builder.combineTypeDefs` deep-merges an array of typeDef blocks into
+one schema object — so you can split things by entity, feature, or
+team and recombine them at the edge.
+
+```ts
+import { postTypeDefs } from "./post";
+import { commentTypeDefs } from "./comment";
+import { userTypeDefs } from "./user";
+
+export const typeDefs = builder.combineTypeDefs([
+  postTypeDefs,
+  commentTypeDefs,
+  userTypeDefs,
+]);
+
+export type TypeDefs = typeof typeDefs;
+```
+
+The result has two things you'll actually use:
+
+- `typeDefs.types` — the merged schema object the **client** reads.
+- `typeDefs.toSDL()` — the standard GraphQL SDL string the **server**
+  reads.
+
+## Where to next
+
+<Cards>
+  <Card
+    title="Selection sets"
+    href="/docs/selection-sets"
+    description="Use the schema you just built from a typed client."
+  />
+  <Card
+    title="Resolvers"
+    href="/docs/resolvers"
+    description="Type your server resolvers from the same schema object."
+  />
+</Cards>

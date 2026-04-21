@@ -1,0 +1,28 @@
+@import "tailwindcss";
+
+@theme {
+  --color-board: oklch(0.98 0.005 95);
+  --color-surface: oklch(1 0 0);
+  --color-surface-muted: oklch(0.97 0.005 95);
+  --color-border: oklch(0.9 0.005 95);
+  --color-text: oklch(0.2 0.01 260);
+  --color-muted: oklch(0.55 0.01 260);
+  --color-accent: oklch(0.55 0.15 260);
+  --color-accent-fg: oklch(1 0 0);
+}
+
+@layer base {
+  html,
+  body {
+    height: 100%;
+  }
+  body {
+    background: var(--color-board);
+    color: var(--color-text);
+    font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica,
+      Arial, sans-serif;
+    font-size: 14px;
+    line-height: 1.5;
+    -webkit-font-smoothing: antialiased;
+  }
+}

@@ -1,0 +1,60 @@
+{
+  "name": "typograph",
+  "type": "module",
+  "files": [
+    "lib",
+    "dist"
+  ],
+  "main": "./lib/main.ts",
+  "module": "./lib/main.ts",
+  "exports": {
+    ".": {
+      "types": "./lib/main.ts",
+      "import": "./lib/main.ts",
+      "default": "./lib/main.ts"
+    },
+    "./integrations/urql": {
+      "types": "./lib/integrations/urql.ts",
+      "import": "./lib/integrations/urql.ts",
+      "default": "./lib/integrations/urql.ts"
+    },
+    "./integrations/apollo": {
+      "types": "./lib/integrations/apollo.ts",
+      "import": "./lib/integrations/apollo.ts",
+      "default": "./lib/integrations/apollo.ts"
+    },
+    "./integrations/react-query": {
+      "types": "./lib/integrations/react-query.ts",
+      "import": "./lib/integrations/react-query.ts",
+      "default": "./lib/integrations/react-query.ts"
+    }
+  },
+  "types": "./lib/main.ts",
+  "version": "1.0.0",
+  "license": "MIT",
+  "scripts": {
+    "test": "vitest --typecheck --run",
+    "dev": "npm --prefix ./demo run dev",
+    "build": "vite build",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "dedent": "^1.5.3",
+    "graphql": "^16.9.0",
+    "ts-morph": "^24.0.0",
+    "typescript": "^5.6.3",
+    "vite": "^6.0.7"
+  },
+  "devDependencies": {
+    "@apollo/client": "^3.11.0",
+    "@tanstack/react-query": "^5.0.0",
+    "@types/node": "^22.13.10",
+    "@types/react": "^19",
+    "@types/react-dom": "^19",
+    "react": "^19.0.0",
+    "react-dom": "^19.0.0",
+    "urql": "^4.2.1",
+    "vite-plugin-dts": "^4.5.0",
+    "vitest": "^3.0.2"
+  }
+}

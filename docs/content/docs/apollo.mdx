@@ -1,0 +1,256 @@
+---
+title: Apollo Client
+description: Drop-in typed React hooks built on top of Apollo Client.
+---
+
+For React apps that already use Apollo Client, typograph ships a
+first-party Apollo integration. It gives you typed `useQuery`,
+`useMutation`, and `useSubscription` hooks with no extra wiring —
+you call them with the same selection sets you'd write for the core
+client, and the variables and response types are inferred from your
+schema.
+
+You don't have to use it. Typograph's core client emits a plain
+GraphQL string and a variables object, so you can pair the schema
+with **any** GraphQL client. The Apollo integration is just the
+shortest path to a typed app when Apollo is already doing your
+caching and transport.
+
+## Setup
+
+Install the peer dependency alongside typograph:
+
+```sh
+npm install @apollo/client
+```
+
+The integration lives at `typograph/integrations/apollo` and exposes
+a single factory:
+
+```ts
+import { createApolloIntegration } from "typograph/integrations/apollo";
+```
+
+Wire it up once at app boot, alongside your `ApolloClient`:
+
+```ts title="apollo-client.ts"
+import {
+  ApolloClient,
+  InMemoryCache,
+  HttpLink,
+} from "@apollo/client";
+import { createApolloIntegration } from "typograph/integrations/apollo";
+import { typeDefs } from "./schema";
+
+export const client = new ApolloClient({
+  link: new HttpLink({ uri: "http://localhost:3001/graphql" }),
+  cache: new InMemoryCache(),
+});
+
+export const { useQuery, useMutation, useSubscription } =
+  createApolloIntegration(typeDefs);
+```
+
+The integration hands typograph the schema, which is what gives the
+hooks their typed selection sets. The `ApolloClient` itself still
+handles transport, caching, and provider context — typograph only
+owns the type bridge.
+
+## Using the hooks
+
+Wrap your app in Apollo's `ApolloProvider`, then import the hooks
+from your local `apollo-client.ts` and pass typograph selection sets
+directly. There's no `gql` template literal and no string-based
+query.
+
+```tsx title="App.tsx"
+import { ApolloProvider } from "@apollo/client";
+import { client } from "./apollo-client";
+import { Posts } from "./Posts";
+
+export const App = () => (
+  <ApolloProvider client={client}>
+    <Posts />
+  </ApolloProvider>
+);
+```
+
+```tsx title="Posts.tsx"
+import { args } from "typograph";
+import { useQuery, useMutation, useSubscription } from "./apollo-client";
+
+export const Posts = () => {
+  // Query with a nested field arg — `commentLimit` is a top-level variable.
+  const { data } = useQuery(
+    {
+      listPosts: {
+        id: true,
+        title: true,
+        comments: args({ limit: "$commentLimit" }, { id: true, body: true }),
+      },
+    },
+    { variables: { commentLimit: 5 } },
+  );
+
+  // Mutation — Apollo's native `[execute, result]` tuple.
+  const [createPost] = useMutation({
+    createPost: { id: true, title: true },
+  });
+
+  // Subscription — Apollo's native `SubscriptionResult`.
+  const { data: feed } = useSubscription({
+    postCreated: { id: true, title: true },
+  });
+
+  return (
+    <>
+      {data?.listPosts.map((p) => (
+        <article key={p.id}>
+          <h2>{p.title}</h2>
+          <ul>
+            {p.comments.map((c) => (
+              <li key={c.id}>{c.body}</li>
+            ))}
+          </ul>
+        </article>
+      ))}
+      <button
+        onClick={() => createPost({ title: "Hello", body: "World" })}
+      >
+        New post
+      </button>
+    </>
+  );
+};
+```
+
+`data?.listPosts`, the `createPost` arguments, and `feed` are all
+typed directly from the selection set. There's no codegen and no
+manual response types.
+
+## Mutation shape
+
+`useMutation` returns Apollo's familiar `[execute, result]` tuple.
+The `execute` function takes the typograph-inferred variables object
+directly — no wrapping in `{ variables: ... }` — and returns the
+Apollo `FetchResult`. The `result` object exposes `data`, `loading`,
+`error`, `called`, and `reset`:
+
+```tsx
+const [createPost, { loading, error, data }] = useMutation({
+  createPost: { id: true, title: true },
+});
+
+await createPost({ title: "Hello", body: "World" });
+//                 ^ typed against the schema's `createPost.input` shape
+```
+
+<Callout type="info">
+  Typograph builds the mutation document at execute time rather than
+  at hook-init time. That's what lets the operation header declare
+  the exact variables the caller passes — every field in the
+  variables object becomes a `$name` in the query header.
+</Callout>
+
+## Subscriptions
+
+Apollo's subscription model expects a dedicated link (e.g.
+`GraphQLWsLink` for graphql-ws, or a custom SSE link for
+graphql-yoga) combined with the HTTP link via Apollo's `split(...)`
+helper. The typograph integration doesn't touch transport — it just
+hands Apollo's `useSubscription` a typed document and variables.
+
+A common SSE setup for graphql-yoga looks like this:
+
+```ts title="apollo-client.ts (continued)"
+import {
+  ApolloClient,
+  ApolloLink,
+  HttpLink,
+  InMemoryCache,
+  Observable,
+  split,
+} from "@apollo/client";
+import { getMainDefinition } from "@apollo/client/utilities";
+import { print } from "graphql";
+
+const GRAPHQL_URL = "http://localhost:3001/graphql";
+
+const httpLink = new HttpLink({ uri: GRAPHQL_URL });
+
+const sseLink = new ApolloLink((operation) => {
+  return new Observable((observer) => {
+    const url = new URL(GRAPHQL_URL);
+    url.searchParams.set("query", print(operation.query));
+    if (Object.keys(operation.variables).length > 0) {
+      url.searchParams.set("variables", JSON.stringify(operation.variables));
+    }
+
+    const es = new EventSource(url.toString());
+    es.addEventListener("next", (event) => {
+      try {
+        observer.next(JSON.parse((event as MessageEvent).data));
+      } catch (err) {
+        observer.error(err);
+      }
+    });
+    es.addEventListener("complete", () => {
+      observer.complete();
+      es.close();
+    });
+    es.addEventListener("error", () => {
+      observer.error(new Error("Subscription connection error"));
+      es.close();
+    });
+
+    return () => es.close();
+  });
+});
+
+export const client = new ApolloClient({
+  link: split(
+    ({ query }) => {
+      const def = getMainDefinition(query);
+      return (
+        def.kind === "OperationDefinition" && def.operation === "subscription"
+      );
+    },
+    sseLink,
+    httpLink,
+  ),
+  cache: new InMemoryCache(),
+});
+```
+
+<Callout type="info">
+  A production app would usually reach for `graphql-ws` or
+  `@apollo/client/link/subscriptions` rather than rolling its own
+  SSE link. The example above stays dependency-free so the pattern
+  is clear, but anything that implements Apollo's `Observable`
+  contract will work.
+</Callout>
+
+## Where to next
+
+<Cards>
+  <Card
+    title="urql"
+    href="/docs/urql"
+    description="The other first-party React integration that ships subscriptions."
+  />
+  <Card
+    title="React Query"
+    href="/docs/react-query"
+    description="For apps already using TanStack Query for caching."
+  />
+  <Card
+    title="graphql-yoga"
+    href="/docs/graphql-yoga"
+    description="Wire up the server side of your typograph app."
+  />
+  <Card
+    title="Use it with anything"
+    href="/docs/any-client"
+    description="Pair typograph with graphql-request, fetch, or your own client."
+  />
+</Cards>

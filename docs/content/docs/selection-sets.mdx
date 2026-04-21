@@ -1,0 +1,312 @@
+---
+title: Selection Sets
+description: Write typed GraphQL queries, mutations, and subscriptions with the typograph client.
+---
+
+The typograph client is the bit that turns your TypeScript object
+into a GraphQL string. It's a thin wrapper — most of what it does is
+type-level — but everything you do at the call site flows through it.
+
+```ts
+import { createClient } from "typograph";
+import { typeDefs } from "./schema";
+
+const client = createClient(typeDefs);
+```
+
+The client gives you three handlers:
+
+- `client.query(...)`
+- `client.mutate(...)`
+- `client.subscribe(...)`
+
+All three use the same call shape and the same inference machinery,
+so anything you learn about one applies to the others.
+
+## The shape of a call
+
+Every operation takes two arguments — a selection set, and an
+optional `variables` object.
+
+```ts
+client.query(selection, { variables? });
+client.mutate(selection, { variables? });
+client.subscribe(selection, { variables? });
+```
+
+The selection set is an object whose keys are the root fields you
+want to select. There's no string overload — single-field and
+multi-field operations look the same.
+
+## Selection sets
+
+Use `true` for primitive fields and another object for nested ones.
+
+```ts
+client.query({
+  listPosts: {
+    id: true,        // leaf
+    title: true,     // leaf
+    comments: {      // nested
+      id: true,
+      body: true,
+    },
+  },
+});
+```
+
+Lists and single objects are written exactly the same way — that's
+because GraphQL syntax for selecting fields off a list is identical
+to selecting them off a single object. The TypeScript inference
+notices when the underlying type is an array and gives you back
+`comments: { id: string; body: string }[]`.
+
+Fields you don't select don't appear on the inferred response type.
+That means you can keep your responses small and your types tight
+without doing any extra work.
+
+## Variables
+
+Variables are collected from the operations you select. The shape is
+inferred from the schema's input declarations, so the second argument
+to your call is fully typed.
+
+```ts
+client.query(
+  { getPost: { id: true, title: true } },
+  { variables: { id: "p1" } }, // typed as { id: string }
+);
+```
+
+If a variable has a default value (declared via
+`t.string({ default: "newest" })`), it becomes **optional** in the
+inferred call signature:
+
+```ts
+// Use the default:
+client.query({ listPosts: { id: true } });
+
+// Or override it:
+client.query(
+  { listPosts: { id: true } },
+  { variables: { order: "oldest" } },
+);
+```
+
+## Field arguments with `args(...)`
+
+The `args(argBindings, selection)` helper is for two situations:
+
+1. You want to bind a nested field's arguments to a top-level
+   variable — e.g. `Post.comments(limit: $limit)`.
+2. You're selecting two top-level fields that take the same argument
+   name and need to disambiguate them.
+
+```ts
+import { args } from "typograph";
+```
+
+### Nested field arguments
+
+Pair `args(...)` with `builder.field({ input, output })` on the parent
+type so the SDL pipeline knows the field actually takes arguments.
+
+```ts
+client.query(
+  {
+    getPost: {
+      id: true,
+      title: true,
+      comments: args({ limit: "$limit" }, { id: true, body: true }),
+    },
+  },
+  { variables: { id: "p1", limit: 5 } },
+);
+```
+
+The emitted GraphQL:
+
+```graphql
+query GetPost($id: String!, $limit: Int) {
+  getPost(id: $id) {
+    id
+    title
+    comments(limit: $limit) {
+      id
+      body
+    }
+  }
+}
+```
+
+### Top-level disambiguation
+
+When two queries in the same operation both take an argument called
+`id`, wrap each one in `args(...)` and bind to distinct variable
+names.
+
+```ts
+client.query(
+  {
+    getPost: args({ id: "$postId" }, { id: true, title: true }),
+    getComment: args({ id: "$commentId" }, { id: true, body: true }),
+  },
+  { variables: { postId: "p1", commentId: "c1" } },
+);
+```
+
+The emitted GraphQL:
+
+```graphql
+query GetPostAndGetComment($postId: String!, $commentId: String!) {
+  getPost(id: $postId) {
+    id
+    title
+  }
+  getComment(id: $commentId) {
+    id
+    body
+  }
+}
+```
+
+<Callout type="info">
+  The references inside `args(...)` must start with `$` — typograph
+  strips one leading `$` to derive the actual key in your variables
+  object. This mirrors how variables look on the wire and is enforced
+  at the type level.
+</Callout>
+
+## What you get back
+
+Every call returns an object with three things on it.
+
+```ts
+const res = client.query(
+  { getPost: { id: true, title: true } },
+  { variables: { id: "p1" } },
+);
+```
+
+### `res.toGraphQL()`
+
+The emitted GraphQL operation as a string. Hand this to whatever
+GraphQL transport you're using.
+
+```ts
+res.toGraphQL();
+// → "query GetPost($id: String!) { getPost(id: $id) { id title } }"
+```
+
+### `res.variables`
+
+The runtime variables object, ready to send over the wire.
+
+```ts
+res.variables;
+// → { id: "p1" }
+```
+
+### `res.returnType`
+
+This one's a little unusual. `res.returnType` is a **phantom** value
+— it's just `{}` at runtime, but its *type* is the projection of
+your selection through the schema. You use it with `typeof` to grab
+the response shape:
+
+```ts
+type Response = typeof res.returnType;
+//   ^? { getPost: { id: string; title: string } }
+```
+
+That's the trick that lets you cast a `fetch` response to the right
+shape, or pass a typed result to Apollo / urql / React Query.
+
+## Mutations
+
+`client.mutate(...)` is the same call shape — it just emits
+`mutation` instead of `query`.
+
+```ts
+client.mutate(
+  { createPost: { id: true, title: true } },
+  { variables: { title: "Hello", body: "World" } },
+);
+```
+
+## Subscriptions
+
+`client.subscribe(...)` emits a `subscription` operation. Typograph
+itself only generates the query string and variables — the actual
+transport (SSE, `graphql-ws`, etc.) is up to you. The
+[urql integration page](/docs/urql) has a working example using
+graphql-yoga's SSE endpoint.
+
+```ts
+client.subscribe({
+  postCreated: { id: true, title: true },
+});
+```
+
+## `__typename`
+
+You can select `__typename` on any object type without declaring it
+on your schema:
+
+```ts
+client.query(
+  {
+    getPost: {
+      __typename: true,
+      id: true,
+      title: true,
+    },
+  },
+  { variables: { id: "p1" } },
+);
+```
+
+The projected type carries `__typename: string`, and graphql-js
+resolves it to the surrounding type's name automatically.
+
+## Building selections dynamically
+
+Because selections are plain JavaScript objects, you can build them
+with any control flow you like — conditionals, spreads, helpers.
+
+```ts
+client.query(
+  {
+    getPost: {
+      id: true,
+      title: true,
+      ...(withBody && { body: true }),
+    },
+  },
+  { variables: { id: "p1" } },
+);
+```
+
+This is why typograph doesn't mirror GraphQL's `@include(if:)` and
+`@skip(if:)` directives. You're already in JavaScript — just use
+JavaScript.
+
+## Where to next
+
+<Cards>
+  <Card
+    title="Resolvers"
+    href="/docs/resolvers"
+    description="Type your server resolvers from the same schema object."
+  />
+  <Card
+    title="React integrations"
+    href="/docs/urql"
+    description="Drop-in typed hooks for urql, Apollo Client, or React Query."
+  />
+  <Card
+    title="Use it with anything"
+    href="/docs/any-client"
+    description="Pair typograph with graphql-request, fetch, or your own client."
+  />
+</Cards>

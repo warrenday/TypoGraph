@@ -1,0 +1,252 @@
+---
+title: Basic Usage
+description: Walk through your first end-to-end typograph app — schema, server, and typed client.
+---
+
+This page walks through the smallest possible typograph app. By the
+end of it you'll have a typed schema, a working GraphQL server, and a
+client that knows the shape of every response without you ever
+writing a type by hand.
+
+If you'd rather skip the walkthrough and read the reference, jump
+straight to [Schemas](/docs/schemas).
+
+## 1. Define your schema
+
+The schema is a normal TypeScript file. You build it with the
+`createTypeDefBuilder` helper and the `t` shorthand for scalars, then
+combine everything into a single `typeDefs` object that both the
+server and the client will import.
+
+```ts title="schema.ts"
+import { createTypeDefBuilder, t } from "typograph";
+
+const builder = createTypeDefBuilder();
+
+const post = builder.type({
+  id: t.string(),
+  title: t.string(),
+  body: t.string(),
+});
+
+export const typeDefs = builder.combineTypeDefs([
+  builder.typeDef({
+    Post: post,
+    Query: {
+      listPosts: builder.query({
+        input: t.type({}),
+        output: t.type<Post[]>("[Post]"),
+      }),
+    },
+    Mutation: {
+      createPost: builder.mutation({
+        input: t.type({
+          title: t.string().notNull(),
+          body: t.string().notNull(),
+        }),
+        output: t.type<Post>("Post"),
+      }),
+    },
+  }),
+]);
+
+export type Post = typeof post;
+export type TypeDefs = typeof typeDefs;
+```
+
+A few things worth noticing:
+
+- `Post` is exported as `typeof post` — that's the bridge from the
+  runtime builder to the static TypeScript type. You'll use it
+  anywhere you need a `Post` reference.
+- `t.type<Post[]>("[Post]")` is how you tell typograph "this returns a
+  list of posts". The TypeScript generic carries the static type, and
+  the string carries the GraphQL syntax that gets emitted in the SDL.
+- `TypeDefs` is the type the client and the server both import. It's
+  the single source of truth for everything that follows.
+
+## 2. Write a resolver
+
+The `Resolvers<TypeDefs>` type derives a fully-typed resolver shape
+from the schema you just defined. The keys are your type names, and
+the values are typed handlers for each field.
+
+```ts title="resolvers.ts"
+import type { Resolvers } from "typograph";
+import type { TypeDefs } from "./schema";
+
+const posts: Array<{ id: string; title: string; body: string }> = [];
+
+export const resolvers: Resolvers<TypeDefs> = {
+  Query: {
+    listPosts: (_source, _args) => posts,
+  },
+  Mutation: {
+    createPost: (_source, { title, body }) => {
+      const post = { id: String(posts.length + 1), title, body };
+      posts.push(post);
+      return post;
+    },
+  },
+};
+```
+
+If you change the schema — rename a field, drop one, add a required
+input — the resolver file lights up red in your editor immediately.
+
+## 3. Run a GraphQL server
+
+Typograph emits standard SDL via `typeDefs.toSDL()`, and its
+resolvers follow graphql-js's `(source, args, context, info)` calling
+convention — so the schema and resolvers plug straight into any
+graphql-js–based server with no adapter. Here's the same schema
+served by graphql-yoga.
+
+```ts title="server.ts"
+import { createServer } from "http";
+import { createYoga, createSchema } from "graphql-yoga";
+import { typeDefs } from "./schema";
+import { resolvers } from "./resolvers";
+
+createServer(
+  createYoga({
+    schema: createSchema({
+      typeDefs: typeDefs.toSDL(),
+      resolvers,
+    }),
+  }),
+).listen(3001);
+```
+
+See the [graphql-yoga integration page](/docs/graphql-yoga) for the
+full server setup, including subscriptions over SSE.
+
+## 4. Query it from a client
+
+This is where the magic happens. The client only needs the same
+`typeDefs` object — no schema introspection, no codegen, no
+duplicated type definitions.
+
+```ts title="client.ts"
+import { createClient } from "typograph";
+import { typeDefs } from "./schema";
+
+const client = createClient(typeDefs);
+
+const res = client.query({
+  listPosts: {
+    id: true,
+    title: true,
+  },
+});
+
+// Send the query with whatever transport you like:
+const response = await fetch("http://localhost:3001/graphql", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    query: res.toGraphQL(),
+    variables: res.variables,
+  }),
+});
+
+const { data } = (await response.json()) as {
+  data: typeof res.returnType;
+};
+
+data.listPosts[0].title;
+//                ^? string
+```
+
+A few things to notice:
+
+- You wrote a JavaScript object, and `res.toGraphQL()` turned it into
+  a real GraphQL string.
+- `data` is fully typed from the schema — every field you selected
+  shows up, every field you didn't doesn't, and TypeScript catches
+  typos at compile time.
+- The actual transport is up to you. We used `fetch` here, but you
+  could just as easily pass `res.toGraphQL()` and `res.variables` to
+  urql, Apollo, graphql-request, React Query, or anything else that
+  speaks GraphQL.
+
+## 5. Or use it from React
+
+If you're building a React app, typograph ships first-party
+integrations for urql, [Apollo Client](/docs/apollo), and
+[React Query](/docs/react-query) — each gives you typed `useQuery`
+/ `useMutation` (and `useSubscription`, where the underlying client
+supports it) with no extra wiring. Pick whichever you already use.
+
+The urql setup looks like this:
+
+```ts title="urql-client.ts"
+import { Client, cacheExchange, fetchExchange } from "urql";
+import { createUrqlIntegration } from "typograph/integrations/urql";
+import { typeDefs } from "./schema";
+
+export const client = new Client({
+  url: "http://localhost:3001/graphql",
+  exchanges: [cacheExchange, fetchExchange],
+});
+
+export const { useQuery, useMutation } =
+  createUrqlIntegration(typeDefs);
+```
+
+```tsx title="Posts.tsx"
+import { useQuery, useMutation } from "./urql-client";
+
+export const Posts = () => {
+  const [{ data, fetching }] = useQuery({
+    listPosts: { id: true, title: true },
+  });
+
+  const [, createPost] = useMutation({
+    createPost: { id: true, title: true },
+  });
+
+  if (fetching) return <p>Loading…</p>;
+
+  return (
+    <>
+      <ul>
+        {data?.listPosts.map((p) => (
+          <li key={p.id}>{p.title}</li>
+        ))}
+      </ul>
+      <button onClick={() => createPost({ title: "Hello", body: "World" })}>
+        New post
+      </button>
+    </>
+  );
+};
+```
+
+That's the whole loop. You wrote the schema once, and every other
+file pulls types directly from it.
+
+## Where to next
+
+<Cards>
+  <Card
+    title="Schemas"
+    href="/docs/schemas"
+    description="Learn how to define types, queries, mutations, subscriptions, and field arguments."
+  />
+  <Card
+    title="Selection sets"
+    href="/docs/selection-sets"
+    description="The full client API — variables, args, dynamic selections, and __typename."
+  />
+  <Card
+    title="React integrations"
+    href="/docs/urql"
+    description="Drop-in typed hooks for urql, Apollo Client, or React Query."
+  />
+  <Card
+    title="Use it with anything"
+    href="/docs/any-client"
+    description="Pair typograph with graphql-request, fetch, or your own client."
+  />
+</Cards>

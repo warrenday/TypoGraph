@@ -1,0 +1,110 @@
+---
+title: Installation
+description: Install typograph and any optional integrations.
+---
+
+Typograph has a single required dependency (`graphql`) and a couple
+of optional integrations you can install if you want them.
+
+## Core install
+
+```bash
+npm install typograph graphql
+```
+
+That's everything you need to define a schema, build queries, and use
+the core client with any GraphQL transport.
+
+## React integrations
+
+Typograph ships first-party React hooks for three popular GraphQL
+clients. Pick whichever you're already using — all three give you
+typed `useQuery` / `useMutation` (and `useSubscription`, where the
+underlying client supports it) with zero codegen.
+
+### urql
+
+```bash
+npm install urql react react-dom
+```
+
+```ts
+import { createUrqlIntegration } from "typograph/integrations/urql";
+```
+
+See the [urql integration page](/docs/urql) for the full setup.
+
+### Apollo Client
+
+```bash
+npm install @apollo/client react react-dom
+```
+
+```ts
+import { createApolloIntegration } from "typograph/integrations/apollo";
+```
+
+See the [Apollo integration page](/docs/apollo) for the full setup.
+
+### React Query (TanStack Query)
+
+```bash
+npm install @tanstack/react-query react react-dom
+```
+
+```ts
+import { createReactQueryIntegration } from "typograph/integrations/react-query";
+```
+
+See the [React Query integration page](/docs/react-query) for the
+full setup. React Query has no subscription primitive; if you need
+typed subscriptions, pair it with the urql or Apollo integration.
+
+## Server-side (graphql-yoga)
+
+Typograph emits standard SDL, so it pairs with any GraphQL server. The
+demo app uses [graphql-yoga](https://the-guild.dev/graphql/yoga-server):
+
+```bash
+npm install graphql-yoga
+```
+
+See the [graphql-yoga integration page](/docs/graphql-yoga) for the
+recommended wiring.
+
+## TypeScript configuration
+
+Typograph leans on a few modern TypeScript features for its inference
+to work well. The minimum config you need is:
+
+```json title="tsconfig.json"
+{
+  "compilerOptions": {
+    "strict": true,
+    "moduleResolution": "Bundler",
+    "target": "ESNext",
+    "module": "ESNext",
+    "esModuleInterop": true,
+    "skipLibCheck": true
+  }
+}
+```
+
+The important bit is `"strict": true`. Without it, the selection-set
+inference falls back to looser types and you lose most of the
+type-safety benefit.
+
+## Where to next
+
+<Cards>
+  <Card
+    title="Basic Usage"
+    href="/docs/basic-usage"
+    description="Build a tiny end-to-end app with a schema, a server, and a typed client."
+  />
+  <Card
+    title="Schemas"
+    href="/docs/schemas"
+    description="Learn how to define types, queries, mutations, and subscriptions."
+  />
+</Cards>

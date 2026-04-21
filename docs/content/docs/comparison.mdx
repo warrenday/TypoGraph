@@ -1,0 +1,118 @@
+---
+title: Comparison
+description: How typograph compares to codegen tools, raw GraphQL strings, and other code-first schema builders.
+---
+
+There are a lot of ways to write type-safe GraphQL in TypeScript, and
+each one makes different trade-offs. This page is an honest look at
+where typograph fits — including the cases where it's probably not the
+right tool for the job.
+
+## vs. code generators
+
+Tools like [graphql-codegen](https://the-guild.dev/graphql/codegen)
+and [gql.tada](https://gql-tada.0no.co/) take your `.graphql` files
+(or inline `gql` tags) and generate TypeScript types from them. They
+work great, and the resulting types are precise — but they come with
+a few moving parts.
+
+**With codegen, you have:**
+
+- A `.graphql` schema file (or an introspection step against a live
+  server) that's separate from your TypeScript.
+- A watcher or build step that regenerates types when the schema
+  changes.
+- Generated files committed to your repo (or generated on every
+  install).
+- A separate templating language (`gql\`...\``) for queries that your
+  editor only partially understands.
+
+**With typograph, you have:**
+
+- A TypeScript file that defines the schema.
+- That's it.
+
+The trade-off is real, though: codegen tools can express the entire
+GraphQL spec because they read real `.graphql` syntax. Typograph
+intentionally covers the parts of GraphQL that map cleanly onto
+TypeScript and skips the parts that don't (like `@include` /
+`@skip` directives — you just use a normal `if` statement instead).
+
+## vs. plain GraphQL strings
+
+You can absolutely write a GraphQL app today with `graphql-request`,
+plain `fetch`, or urql without any types. It works, it's simple, and
+you can ship it tomorrow.
+
+The tradeoff is that the responses come back as `any`, and a typo in
+a field name doesn't show up until runtime. Most teams that go this
+route end up adding manual response types, which then drift out of
+sync with the server, which is what codegen and typograph both exist
+to fix.
+
+Typograph fixes it by making the schema and the call site share the
+same TypeScript object. There's literally nothing to drift.
+
+## vs. other code-first schema builders
+
+[Pothos](https://pothos-graphql.dev/),
+[Nexus](https://nexusjs.org/), and
+[TypeGraphQL](https://typegraphql.com/) all let you build a GraphQL
+schema in TypeScript — typograph isn't the first to try this. They
+focus on the **server** side, with rich plugin systems for things
+like authorization, dataloaders, and Prisma integration.
+
+Typograph takes a smaller swing. It's a single library that:
+
+- Builds a schema (server-side).
+- Emits standard SDL you can hand to any GraphQL server.
+- Generates a typed client from the same schema (client-side).
+- Doesn't try to be a full server framework.
+
+If you want a fully-featured server library with plugins for every
+ORM under the sun, reach for Pothos. If you want one tiny library
+that types both ends of the wire and stays out of your way, try
+typograph.
+
+## When to use typograph
+
+Typograph is a good fit when:
+
+- You own both the client **and** the server, and you want them to
+  share types automatically.
+- You don't want a build step or generated files in your repo.
+- You're happy writing your schema in TypeScript instead of `.graphql`
+  files.
+- You want to be able to swap out your GraphQL client (urql, Apollo,
+  fetch, ...) without rewriting your queries.
+
+## When to use something else
+
+Typograph is probably **not** the right choice when:
+
+- You're consuming a third-party GraphQL API you don't control. You
+  can still use typograph by re-declaring the schema in TypeScript,
+  but a codegen tool that reads the live introspection schema will
+  be lower-effort.
+- You need every GraphQL feature: custom directives, fragment unions
+  with discriminator codegen, schema stitching across federated
+  services. Some of those are reachable with typograph today; some
+  are deliberately out of scope.
+- Your server is in a different language. Typograph's superpower is
+  sharing types between client and server, and that only pays off
+  when both are TypeScript.
+
+## Where to next
+
+<Cards>
+  <Card
+    title="Installation"
+    href="/docs/installation"
+    description="Install typograph and the optional integrations."
+  />
+  <Card
+    title="Basic Usage"
+    href="/docs/basic-usage"
+    description="Walk through your first end-to-end typograph app."
+  />
+</Cards>

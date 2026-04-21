@@ -1,0 +1,223 @@
+---
+title: Field arguments
+description: Use the args() helper for nested field arguments and root-level disambiguation.
+---
+
+Most fields in a typograph schema don't need their own arguments —
+they're just selections off a parent. But sometimes you want to do
+something like `Post.comments(limit: 5)`, where the field itself
+takes parameters. That's what `builder.field` and the `args(...)`
+helper are for.
+
+This guide covers the two main situations where you'll reach for
+them.
+
+## When you need this
+
+You need `args(...)` when one of the following is true:
+
+1. A nested field on one of your types takes its own arguments —
+   `Post.comments(limit:)`, `User.notifications(unreadOnly:)`, etc.
+2. You're selecting two top-level operations in the same call that
+   both take an argument with the same name — e.g. `getPost(id:)`
+   and `getComment(id:)`.
+
+For everything else, the regular `client.query({ ... })` shape is
+all you need.
+
+## Nested field arguments
+
+### 1. Declare the field on the schema
+
+Use `builder.field` to declare a field with its own input map. This
+is what tells typograph "this field takes arguments" — and it's also
+what gives the resolver a typed second `args` parameter.
+
+```ts title="schema.ts"
+import { createTypeDefBuilder, t } from "typograph";
+
+const builder = createTypeDefBuilder();
+
+const post = builder.type({
+  id: t.string(),
+  title: t.string(),
+  comments: builder.field({
+    input: { limit: t.int() },
+    output: () => t.type<Comment[]>("[Comment]"),
+  }),
+});
+```
+
+### 2. Bind the argument in your selection
+
+On the call site, wrap the nested selection in `args(...)` to bind
+the field argument to a top-level variable.
+
+```ts
+import { args } from "typograph";
+
+client.query(
+  {
+    getPost: {
+      id: true,
+      title: true,
+      comments: args({ limit: "$limit" }, { id: true, body: true }),
+    },
+  },
+  { variables: { id: "p1", limit: 5 } },
+);
+```
+
+The `{ limit: "$limit" }` map says "the `limit` argument of this
+field should be bound to a variable called `$limit`". The leading
+`$` mirrors the on-the-wire GraphQL syntax and is enforced at the
+type level.
+
+### 3. The result
+
+The emitted GraphQL:
+
+```graphql
+query GetPost($id: String!, $limit: Int) {
+  getPost(id: $id) {
+    id
+    title
+    comments(limit: $limit) {
+      id
+      body
+    }
+  }
+}
+```
+
+And on the resolver side, the field's second argument is typed from
+the same input map:
+
+```ts
+const resolvers: Resolvers<TypeDefs> = {
+  Post: {
+    comments: (parent, args) => {
+      //              ^? { limit: number | undefined }
+      const all = db.comments.whereParent(parent.id);
+      return typeof args.limit === "number"
+        ? all.slice(0, args.limit)
+        : all;
+    },
+  },
+};
+```
+
+## Renaming variables
+
+If you don't like the variable name matching the field argument, you
+can rename it. The variable name is whatever follows the `$`, and
+the field argument is whatever the key on the args map is.
+
+```ts
+client.query(
+  {
+    getPost: {
+      id: true,
+      comments: args(
+        { limit: "$commentLimit" }, // arg name → var name
+        { id: true, body: true },
+      ),
+    },
+  },
+  { variables: { id: "p1", commentLimit: 5 } },
+);
+```
+
+The emitted GraphQL becomes:
+
+```graphql
+query GetPost($id: String!, $commentLimit: Int) {
+  getPost(id: $id) {
+    id
+    comments(limit: $commentLimit) {
+      id
+      body
+    }
+  }
+}
+```
+
+This is the same machinery used for top-level disambiguation —
+keep reading.
+
+## Top-level disambiguation
+
+When two queries in the same operation both take an argument called
+`id`, you can't pass both as the same `$id` variable. Wrap each one
+in `args(...)` and bind to distinct variable names.
+
+```ts
+client.query(
+  {
+    getPost: args({ id: "$postId" }, { id: true, title: true }),
+    getComment: args({ id: "$commentId" }, { id: true, body: true }),
+  },
+  { variables: { postId: "p1", commentId: "c1" } },
+);
+```
+
+The emitted GraphQL:
+
+```graphql
+query GetPostAndGetComment($postId: String!, $commentId: String!) {
+  getPost(id: $postId) {
+    id
+    title
+  }
+  getComment(id: $commentId) {
+    id
+    body
+  }
+}
+```
+
+The same trick works for mutations:
+
+```ts
+client.mutate(
+  {
+    createPost: args({ input: "$post" }, { id: true }),
+    createComment: args({ input: "$comment" }, { id: true }),
+  },
+  {
+    variables: {
+      post: { title: "Hello", body: "World" },
+      comment: { name: "ada" },
+    },
+  },
+);
+```
+
+## A few small rules
+
+- Variable references inside `args(...)` **must** start with a `$`.
+  Typograph strips one leading `$` to derive the bare variables-object
+  key, and the convention is enforced at the type level so you'll
+  notice if you forget.
+- Two operations that rename the same variable to the **same** name
+  collapse into one variable on the call site. If the underlying
+  types are compatible, that's fine — if not, you'll get a type
+  error.
+- `args(...)` doesn't change the projected return type. The
+  selection inside is what determines `res.returnType`, so wrapping
+  is purely additive on the type side.
+
+## Where to next
+
+<Cards>
+  <Card
+    title="Selection sets"
+    href="/docs/selection-sets"
+    description="The full client API — variables, defaults, dynamic selections, and __typename."
+  />
+  <Card
+    title="Schemas"
+    href="/docs/schemas"
+    description="Reference for builder.field, builder.inputType, and the rest of the schema builder."
+  />
+</Cards>

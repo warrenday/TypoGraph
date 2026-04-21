@@ -1,0 +1,168 @@
+---
+title: Use it with anything
+description: Pair typograph with graphql-request, fetch, or any GraphQL client of your choice.
+---
+
+Typograph's core client is intentionally tiny. It only does two
+things:
+
+1. Turns your selection set into a GraphQL string (`res.toGraphQL()`).
+2. Hands you the variables object you'd send with it (`res.variables`).
+
+That means it works with **any** transport that takes a GraphQL
+string. You don't need an adapter, a plugin, or a special client —
+typograph just produces the same things you'd write by hand, and you
+plug them into whatever you already use.
+
+The trick that ties it all together is `typeof res.returnType` — a
+phantom type that gives you the inferred response shape for free.
+Hand it to whichever client you're using and you get a fully-typed
+result back.
+
+## Setup
+
+You only need the core client and your schema:
+
+```ts
+import { createClient } from "typograph";
+import { typeDefs } from "./schema";
+
+const client = createClient(typeDefs);
+```
+
+Build the operation once:
+
+```ts
+const res = client.query(
+  { getPost: { id: true, title: true } },
+  { variables: { id: "p1" } },
+);
+```
+
+`res.toGraphQL()`, `res.variables`, and `typeof res.returnType` are
+the three things every example below uses.
+
+## Apollo Client
+
+Typograph ships a first-party Apollo integration — see
+[Apollo Client](/docs/apollo) for typed `useQuery` / `useMutation` /
+`useSubscription` hooks. If you'd rather wire it up yourself:
+
+```ts
+import { gql, useQuery } from "@apollo/client";
+
+const { data } = useQuery<typeof res.returnType>(gql(res.toGraphQL()), {
+  variables: res.variables,
+});
+
+data?.getPost.title;
+//             ^? string
+```
+
+## graphql-request
+
+```ts
+import { request } from "graphql-request";
+
+const data = await request<typeof res.returnType>(
+  "/graphql",
+  res.toGraphQL(),
+  res.variables,
+);
+
+data.getPost.title;
+//            ^? string
+```
+
+## React Query
+
+Typograph ships a first-party React Query integration — see
+[React Query](/docs/react-query) for typed `useQuery` / `useMutation`
+hooks. If you'd rather wire it up yourself, the pattern is:
+
+```ts
+import { useQuery } from "@tanstack/react-query";
+import { request } from "graphql-request";
+
+const { data } = useQuery({
+  queryKey: ["getPost", res.variables],
+  queryFn: () =>
+    request<typeof res.returnType>(
+      "/graphql",
+      res.toGraphQL(),
+      res.variables,
+    ),
+});
+```
+
+## Plain `fetch`
+
+If you don't want a GraphQL client at all, `fetch` is enough:
+
+```ts
+const response = await fetch("/graphql", {
+  method: "POST",
+  headers: { "content-type": "application/json" },
+  body: JSON.stringify({
+    query: res.toGraphQL(),
+    variables: res.variables,
+  }),
+});
+
+const { data } = (await response.json()) as {
+  data: typeof res.returnType;
+};
+
+data.getPost.title;
+//            ^? string
+```
+
+## urql (without the integration)
+
+If you'd rather use urql directly than the
+[first-party integration](/docs/urql), the same pattern works:
+
+```ts
+import { Client } from "urql";
+
+const urql = new Client({ url: "/graphql" });
+
+const result = await urql
+  .query<typeof res.returnType>(res.toGraphQL(), res.variables)
+  .toPromise();
+
+result.data?.getPost.title;
+//                    ^? string
+```
+
+## The point
+
+In every example above, the only thing that changes is the
+**transport**. The schema, the selection set, and the inferred
+response type are exactly the same. You can swap clients freely —
+typograph isn't tied to any of them.
+
+## Where to next
+
+<Cards>
+  <Card
+    title="urql"
+    href="/docs/urql"
+    description="First-party React hooks built on urql — includes subscriptions."
+  />
+  <Card
+    title="Apollo Client"
+    href="/docs/apollo"
+    description="First-party React hooks built on Apollo Client."
+  />
+  <Card
+    title="React Query"
+    href="/docs/react-query"
+    description="First-party hooks for apps already using TanStack Query."
+  />
+  <Card
+    title="graphql-yoga"
+    href="/docs/graphql-yoga"
+    description="Wire up the server side of your typograph app."
+  />
+</Cards>

@@ -1,0 +1,23 @@
+{
+  "title": "Docs",
+  "pages": [
+    "---Get Started---",
+    "introduction",
+    "comparison",
+    "installation",
+    "basic-usage",
+    "---Concepts---",
+    "schemas",
+    "selection-sets",
+    "resolvers",
+    "---Integrations---",
+    "urql",
+    "apollo",
+    "react-query",
+    "graphql-yoga",
+    "any-client",
+    "---Guides---",
+    "nextjs",
+    "field-arguments"
+  ]
+}
