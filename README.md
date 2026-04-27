@@ -16,6 +16,7 @@ It's not trying to replace Apollo, Pothos, or any other GraphQL stack. It's the 
 - ✅ You want schema + resolver + client types derived from a single source
 - ❌ Your server and client are separate codebases owned by different teams (use codegen)
 - ❌ You only need a backend GraphQL API (use an SDL-first setup)
+- ❌ You want to hide parts of your schema or your schema is extremely large (Codegen is a better option)
 
 ## Example
 

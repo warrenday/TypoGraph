@@ -68,7 +68,17 @@ export type TypeDefs = typeof typeDefs;
 
 ## 3. Write the resolvers
 
+In a real app, resolvers import server-only dependencies like
+database clients. Use the `server-only` package to make sure
+these files never leak into the client bundle — the build will
+fail if a client component imports them (even transitively).
+
+```bash
+npm install server-only
+```
+
 ```ts title="lib/resolvers.ts"
+import "server-only";
 import type { Resolvers } from "@overstacked/typograph";
 import type { TypeDefs } from "./schema";
 
@@ -87,6 +97,9 @@ export const resolvers: Resolvers<TypeDefs> = {
   },
 };
 ```
+
+See [Project structure](/docs/project-structure) for more on
+keeping server code out of the client bundle.
 
 ## 4. Mount the route handler
 

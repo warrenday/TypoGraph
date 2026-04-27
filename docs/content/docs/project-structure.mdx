@@ -1,0 +1,137 @@
+---
+title: Project structure
+description: How to organise your schema, resolvers, and client code so server-only dependencies stay out of the client bundle.
+---
+
+Typograph works by sharing a single `typeDefs` object between your
+server and client. Because the client imports `typeDefs` at runtime
+to build query strings, it's important to keep the schema file free
+of server-only dependencies like database connections or secrets.
+
+## Recommended layout
+
+```
+lib/
+  schema.ts          # Schema definition only (builder + types)
+  resolvers.ts       # Server-only (database, auth, secrets)
+  executable.ts      # Combines schema + resolvers for the server
+  urql-client.ts     # Client-side urql setup, imports schema.ts
+```
+
+### schema.ts
+
+This file defines your types, queries, mutations, and subscriptions
+using the typograph builder. It should **only** import from
+`@overstacked/typograph` and your own type definitions. Never import
+database clients, environment variables, or server utilities here.
+
+```ts title="lib/schema.ts"
+import { createTypeDefBuilder, t } from "@overstacked/typograph";
+
+const builder = createTypeDefBuilder();
+
+const post = builder.type({
+  id: t.id().notNull(),
+  title: t.string().notNull(),
+});
+
+type Post = typeof post;
+
+export const typeDefs = builder.combineTypeDefs([
+  builder.typeDef({
+    Post: post,
+    Query: {
+      getPost: builder.query({
+        input: { id: t.id().notNull() },
+        output: t.type<Post>("Post"),
+      }),
+    },
+    Mutation: {},
+  }),
+]);
+
+export type TypeDefs = typeof typeDefs;
+```
+
+### resolvers.ts
+
+This is where server-only code lives. Import your database, auth
+libraries, and anything else the client should never see.
+
+```ts title="lib/resolvers.ts"
+import type { Resolvers } from "@overstacked/typograph";
+import type { TypeDefs } from "./schema";
+import { db } from "./database";
+
+export const resolvers: Resolvers<TypeDefs> = {
+  Query: {
+    getPost: ({ id }) => db.posts.findUnique({ where: { id } }),
+  },
+};
+```
+
+Notice that the resolvers file uses **type-only imports** from
+the schema (`import type { TypeDefs }`). This means it gets full
+type safety without creating a runtime dependency back into
+`schema.ts`.
+
+### Client code
+
+The client imports `typeDefs` from `schema.ts` directly. This is
+safe because `schema.ts` contains only the builder calls — no
+server dependencies.
+
+```ts title="lib/urql-client.ts"
+"use client";
+
+import { createUrqlIntegration } from "@overstacked/typograph/integrations/urql";
+import { typeDefs } from "./schema";
+
+export const { useQuery, useMutation } = createUrqlIntegration(typeDefs);
+```
+
+## What ships to the client
+
+When the client imports `typeDefs`, the bundle includes:
+
+- The evaluated schema object (type names, field types, input/output
+  maps) — this is the metadata needed to construct typed GraphQL
+  query strings at runtime.
+- The typograph builder code (~7 KB minified).
+- The `graphql` package (likely already present if you're using
+  urql, Apollo, or another GraphQL client).
+
+The entire schema is visible in the client bundle. This is by design
+— typograph is built for projects where you own both the server and
+client. If you need to hide parts of your schema from the client,
+consider a codegen-based approach instead.
+
+## Next.js: enforcing the boundary
+
+Next.js provides the
+[`server-only`](https://nextjs.org/docs/app/building-your-application/rendering/composition-patterns#keeping-server-only-code-out-of-the-client-environment)
+package to enforce server/client separation at build time. Add it to
+any file that should never be imported by client code:
+
+```bash
+npm install server-only
+```
+
+```ts title="lib/resolvers.ts"
+import "server-only";
+import type { Resolvers } from "@overstacked/typograph";
+import type { TypeDefs } from "./schema";
+import { db } from "./database";
+
+export const resolvers: Resolvers<TypeDefs> = {
+  // ...
+};
+```
+
+If any client component transitively imports a file marked with
+`import "server-only"`, the build will fail with a clear error. This
+prevents accidental leakage of database connections, API keys, or
+other secrets into the client bundle.
+
+**Do not** add `import "server-only"` to `schema.ts` — the client
+needs to import it at runtime.
