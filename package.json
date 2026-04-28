@@ -29,6 +29,19 @@
       "require": "./dist/integrations/react-query.cjs"
     }
   },
+  "typesVersions": {
+    "*": {
+      "integrations/urql": [
+        "./dist/integrations/urql.d.ts"
+      ],
+      "integrations/apollo": [
+        "./dist/integrations/apollo.d.ts"
+      ],
+      "integrations/react-query": [
+        "./dist/integrations/react-query.d.ts"
+      ]
+    }
+  },
   "version": "1.0.1",
   "description": "Write GraphQL in plain TypeScript — fully typed end-to-end, with no codegen, no build step, and zero lock-in.",
   "license": "MIT",
