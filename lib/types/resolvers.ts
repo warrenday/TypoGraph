@@ -9,6 +9,8 @@ import { BaseTypeDefs, DeepPartial, FieldWithArgs, PeelFieldArgs } from "./commo
 // which forces a narrowing check the moment a resolver reaches for a
 // field on it, catching accidental context use in code that didn't
 // opt into a context type.
+type MaybePromise<T> = T | Promise<T>;
+
 type PartialResolver<
   T extends Record<string, { input: unknown; output: unknown }>,
   Context,
@@ -18,7 +20,7 @@ type PartialResolver<
     args: T[K]["input"],
     context: Context,
     info?: GraphQLResolveInfo,
-  ) => DeepPartial<T[K]["output"]>;
+  ) => MaybePromise<DeepPartial<T[K]["output"]>>;
 };
 
 // Resolver map for a named object type. Every field resolver follows
@@ -41,13 +43,13 @@ type PartialTypeResolver<T extends Record<string, any>, Context> = {
         args: Partial<FieldInput>,
         context: Context,
         info?: GraphQLResolveInfo,
-      ) => DeepPartial<FieldOutput>
+      ) => MaybePromise<DeepPartial<FieldOutput>>
     : (
         parent: T,
         args: {},
         context: Context,
         info?: GraphQLResolveInfo,
-      ) => DeepPartial<PeelFieldArgs<T[K]>>;
+      ) => MaybePromise<DeepPartial<PeelFieldArgs<T[K]>>>;
 };
 
 // Subscription resolvers carry both a `subscribe` (returns the source

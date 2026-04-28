@@ -34,9 +34,12 @@ export type ExtractValue<T> = {
 };
 
 // Recursive partial. Resolvers may legally return only the fields they own
-// (other fields are filled in by their own resolvers).
+// (other fields are filled in by their own resolvers). Leaf values accept
+// `| null` because ORM layers (Prisma, Drizzle) model nullable columns as
+// `string | null` while the GraphQL spec treats null and absent identically
+// for output fields.
 export type DeepPartial<T> = {
-  [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K];
+  [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] | null;
 };
 
 // Minimum shape of an evaluated `typeDefs.types` object: a required `Query`

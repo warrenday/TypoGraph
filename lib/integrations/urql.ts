@@ -6,6 +6,8 @@ import {
   type UseQueryResponse,
   type UseSubscriptionResponse,
   type OperationResult,
+  type OperationContext,
+  type RequestPolicy,
 } from "urql";
 import createClient from "../client";
 import type {
@@ -28,16 +30,29 @@ import type { BaseTypeDefs } from "../types/common";
 //      place — consumers can look up exactly what `useQuery` / `useMutation`
 //      / `useSubscription` accept and return without having to squint at
 //      the factory body.
+interface UseQueryOptions<Variables> {
+  variables: Variables;
+  pause?: boolean;
+  requestPolicy?: RequestPolicy;
+  context?: Partial<OperationContext>;
+}
+
+interface UseSubscriptionOptions<Variables> {
+  variables: Variables;
+  pause?: boolean;
+  context?: Partial<OperationContext>;
+}
+
 interface UrqlIntegration<Schema extends BaseTypeDefs> {
   useQuery: <const S extends SelectionsByOperation<Schema, "Query">>(
     selection: S,
-    options?: { variables: MergedVariables<Schema, "Query", S> },
+    options?: UseQueryOptions<MergedVariables<Schema, "Query", S>>,
   ) => UseQueryResponse<ReturnShape<Schema, "Query", S>, any>;
 
   useMutation: <const S extends SelectionsByOperation<Schema, "Mutation">>(
     selection: S,
   ) => readonly [
-    { fetching: boolean; error?: Error },
+    { fetching: boolean; error?: Error; data?: ReturnShape<Schema, "Mutation", S> },
     (
       variables: MergedVariables<Schema, "Mutation", S>,
     ) => Promise<OperationResult<ReturnShape<Schema, "Mutation", S>, any>>,
@@ -47,7 +62,9 @@ interface UrqlIntegration<Schema extends BaseTypeDefs> {
     const S extends SelectionsByOperation<Schema, "Subscription">,
   >(
     selection: S,
-    options?: { variables: MergedVariables<Schema, "Subscription", S> },
+    options?: UseSubscriptionOptions<
+      MergedVariables<Schema, "Subscription", S>
+    >,
   ) => UseSubscriptionResponse<ReturnShape<Schema, "Subscription", S>, any>;
 }
 
@@ -91,12 +108,15 @@ export const createUrqlIntegration = <T extends { types: BaseTypeDefs }>(
   // straight into urql.
   const useQuery = <const S extends SelectionsByOperation<Schema, "Query">>(
     selection: S,
-    options?: { variables: MergedVariables<Schema, "Query", S> },
+    options?: UseQueryOptions<MergedVariables<Schema, "Query", S>>,
   ): UseQueryResponse<ReturnShape<Schema, "Query", S>, any> => {
     const res = typograph.query(selection, options as any);
     return useUrqlQuery<ReturnShape<Schema, "Query", S>, any>({
       query: res.toGraphQL(),
       variables: res.variables,
+      pause: options?.pause,
+      requestPolicy: options?.requestPolicy,
+      context: options?.context,
     });
   };
 
@@ -121,7 +141,7 @@ export const createUrqlIntegration = <T extends { types: BaseTypeDefs }>(
   >(
     selection: S,
   ): readonly [
-    { fetching: boolean; error?: Error },
+    { fetching: boolean; error?: Error; data?: ReturnShape<Schema, "Mutation", S> },
     (
       variables: MergedVariables<Schema, "Mutation", S>,
     ) => Promise<OperationResult<ReturnShape<Schema, "Mutation", S>, any>>,
@@ -130,6 +150,7 @@ export const createUrqlIntegration = <T extends { types: BaseTypeDefs }>(
     const [state, setState] = useState<{
       fetching: boolean;
       error?: Error;
+      data?: ReturnShape<Schema, "Mutation", S>;
     }>({ fetching: false });
 
     // `selection` is almost always an object literal at the call site
@@ -152,7 +173,7 @@ export const createUrqlIntegration = <T extends { types: BaseTypeDefs }>(
         if (result.error) {
           setState({ fetching: false, error: result.error });
         } else {
-          setState({ fetching: false });
+          setState({ fetching: false, data: result.data ?? undefined });
         }
         return result;
       },
@@ -172,7 +193,9 @@ export const createUrqlIntegration = <T extends { types: BaseTypeDefs }>(
     const S extends SelectionsByOperation<Schema, "Subscription">,
   >(
     selection: S,
-    options?: { variables: MergedVariables<Schema, "Subscription", S> },
+    options?: UseSubscriptionOptions<
+      MergedVariables<Schema, "Subscription", S>
+    >,
   ): UseSubscriptionResponse<ReturnShape<Schema, "Subscription", S>, any> => {
     const res = typograph.subscribe(selection, options as any);
     return useUrqlSubscription<
@@ -182,6 +205,8 @@ export const createUrqlIntegration = <T extends { types: BaseTypeDefs }>(
     >({
       query: res.toGraphQL(),
       variables: res.variables,
+      pause: options?.pause,
+      context: options?.context,
     });
   };
 
