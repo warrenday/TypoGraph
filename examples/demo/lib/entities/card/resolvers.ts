@@ -1,5 +1,7 @@
+import type { Resolvers } from "@overstacked/typograph";
 import { prisma } from "../../db";
 import { publish, subscribe } from "../../pubsub";
+import { cardTypeDefs } from "./schema";
 
 const boardIdForCard = async (cardId: string): Promise<string> => {
   const row = await prisma.card.findUniqueOrThrow({
@@ -26,17 +28,14 @@ const nextCardPosition = async (listId: string): Promise<number> => {
   return (last?.position ?? 0) + 1000;
 };
 
-export const cardResolvers = {
+export const cardResolvers: Resolvers<typeof cardTypeDefs> = {
   Card: {
-    list: (parent: { listId: string }) =>
+    list: (parent) =>
       prisma.list.findUnique({ where: { id: parent.listId } }),
   },
 
   Mutation: {
-    createCard: async (
-      _source: unknown,
-      args: { listId: string; title: string; clientId: string },
-    ) => {
+    createCard: async (_source, args) => {
       const card = await prisma.card.create({
         data: {
           listId: args.listId,
@@ -55,15 +54,7 @@ export const cardResolvers = {
       return card;
     },
 
-    updateCard: async (
-      _source: unknown,
-      args: {
-        id: string;
-        title?: string | null;
-        description?: string | null;
-        clientId: string;
-      },
-    ) => {
+    updateCard: async (_source, args) => {
       const card = await prisma.card.update({
         where: { id: args.id },
         data: {
@@ -85,18 +76,7 @@ export const cardResolvers = {
       return card;
     },
 
-    moveCard: async (
-      _source: unknown,
-      args: {
-        id: string;
-        toListId: string;
-        position: number;
-        clientId: string;
-      },
-    ) => {
-      // Capture the source list *before* the move so the published
-      // event can carry both endpoints — the UI uses them to splice the
-      // card out of the old column and into the new one.
+    moveCard: async (_source, args) => {
       const before = await prisma.card.findUniqueOrThrow({
         where: { id: args.id },
         select: { listId: true },
@@ -117,10 +97,7 @@ export const cardResolvers = {
       return card;
     },
 
-    deleteCard: async (
-      _source: unknown,
-      args: { id: string; clientId: string },
-    ) => {
+    deleteCard: async (_source, args) => {
       const boardId = await boardIdForCard(args.id);
       await prisma.card.delete({ where: { id: args.id } });
       publish(`board:${boardId}:card`, {
@@ -134,9 +111,9 @@ export const cardResolvers = {
 
   Subscription: {
     cardChanged: {
-      subscribe: (_source: unknown, args: { boardId: string }) =>
+      subscribe: (_source, args) =>
         subscribe(`board:${args.boardId}:card`),
-      resolve: (payload: unknown) => payload,
+      resolve: (payload) => payload,
     },
   },
 };

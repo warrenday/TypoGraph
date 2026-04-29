@@ -1,5 +1,7 @@
+import type { Resolvers } from "@overstacked/typograph";
 import { prisma } from "../../db";
 import { publish, subscribe } from "../../pubsub";
+import { listTypeDefs } from "./schema";
 
 const nextListPosition = async (boardId: string): Promise<number> => {
   const last = await prisma.list.findFirst({
@@ -10,9 +12,9 @@ const nextListPosition = async (boardId: string): Promise<number> => {
   return (last?.position ?? 0) + 1000;
 };
 
-export const listResolvers = {
+export const listResolvers: Resolvers<typeof listTypeDefs> = {
   List: {
-    cards: (parent: { id: string }) =>
+    cards: (parent) =>
       prisma.card.findMany({
         where: { listId: parent.id },
         orderBy: { position: "asc" },
@@ -20,10 +22,7 @@ export const listResolvers = {
   },
 
   Mutation: {
-    createList: async (
-      _source: unknown,
-      args: { boardId: string; title: string; clientId: string },
-    ) => {
+    createList: async (_source, args) => {
       const list = await prisma.list.create({
         data: {
           boardId: args.boardId,
@@ -40,10 +39,7 @@ export const listResolvers = {
       return list;
     },
 
-    renameList: async (
-      _source: unknown,
-      args: { id: string; title: string; clientId: string },
-    ) => {
+    renameList: async (_source, args) => {
       const list = await prisma.list.update({
         where: { id: args.id },
         data: { title: args.title },
@@ -57,10 +53,7 @@ export const listResolvers = {
       return list;
     },
 
-    moveList: async (
-      _source: unknown,
-      args: { id: string; position: number; clientId: string },
-    ) => {
+    moveList: async (_source, args) => {
       const list = await prisma.list.update({
         where: { id: args.id },
         data: { position: args.position },
@@ -74,13 +67,7 @@ export const listResolvers = {
       return list;
     },
 
-    deleteList: async (
-      _source: unknown,
-      args: { id: string; clientId: string },
-    ) => {
-      // Fetch the boardId before the delete so we can still publish to
-      // the right topic after the row is gone. Cascade rules on the
-      // Prisma schema handle the owned cards.
+    deleteList: async (_source, args) => {
       const list = await prisma.list.findUniqueOrThrow({
         where: { id: args.id },
         select: { boardId: true },
@@ -97,9 +84,9 @@ export const listResolvers = {
 
   Subscription: {
     boardChanged: {
-      subscribe: (_source: unknown, args: { boardId: string }) =>
+      subscribe: (_source, args) =>
         subscribe(`board:${args.boardId}:list`),
-      resolve: (payload: unknown) => payload,
+      resolve: (payload) => payload,
     },
   },
 };

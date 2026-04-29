@@ -20,7 +20,7 @@ type PartialResolver<
     args: T[K]["input"],
     context: Context,
     info?: GraphQLResolveInfo,
-  ) => MaybePromise<DeepPartial<T[K]["output"]>>;
+  ) => MaybePromise<DeepPartial<T[K]["output"]> | null>;
 };
 
 // Resolver map for a named object type. Every field resolver follows
@@ -43,13 +43,13 @@ type PartialTypeResolver<T extends Record<string, any>, Context> = {
         args: Partial<FieldInput>,
         context: Context,
         info?: GraphQLResolveInfo,
-      ) => MaybePromise<DeepPartial<FieldOutput>>
+      ) => MaybePromise<DeepPartial<FieldOutput> | null>
     : (
         parent: T,
         args: {},
         context: Context,
         info?: GraphQLResolveInfo,
-      ) => MaybePromise<DeepPartial<PeelFieldArgs<T[K]>>>;
+      ) => MaybePromise<DeepPartial<PeelFieldArgs<T[K]>> | null>;
 };
 
 // Subscription resolvers carry both a `subscribe` (returns the source
@@ -83,9 +83,14 @@ type PartialSubscriptionResolver<
 // `IResolvers` index signature rejects `never`, so conditional
 // intersections let typeDefs without those operations flow straight into
 // `createSchema({ resolvers })` without a cast.
-type Resolvers<T extends { types: BaseTypeDefs }, Context = unknown> = {
-  Query?: PartialResolver<T["types"]["Query"], Context>;
-} & (T["types"]["Mutation"] extends Record<
+type Resolvers<T extends { types: BaseTypeDefs }, Context = unknown> =
+  (T["types"]["Query"] extends Record<
+    string,
+    { input: unknown; output: unknown }
+  >
+    ? { Query?: PartialResolver<T["types"]["Query"], Context> }
+    : {}) &
+  (T["types"]["Mutation"] extends Record<
   string,
   { input: unknown; output: unknown }
 >

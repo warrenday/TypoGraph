@@ -42,19 +42,17 @@ export type DeepPartial<T> = {
   [K in keyof T]?: T[K] extends object ? DeepPartial<T[K]> : T[K] | null;
 };
 
-// Minimum shape of an evaluated `typeDefs.types` object: a required `Query`
-// map plus optional `Mutation` and `Subscription` maps, alongside arbitrary
-// named object types. Only `Query` is required — a GraphQL schema must
-// define at least a Query root, but mutations and subscriptions are
-// genuinely optional. The SDL pipeline already skips empty operation maps,
-// and the client / resolver types `NonNullable`-strip Mutation/Subscription
-// before indexing, so callers can simply omit the key instead of writing
-// `Mutation: {}` boilerplate.
+// Minimum shape of an evaluated `typeDefs.types` object. All three
+// operation maps are optional so that a standalone typeDef slice (e.g. one
+// that only declares a `Post` type) can be used with `Resolvers<typeof td>`
+// without being forced to include an empty `Query: {}`. The SDL pipeline
+// already skips empty operation maps, and the client / resolver types
+// `NonNullable`-strip each operation before indexing.
 //
-// The index signature accepts `undefined` so the two optional operation
-// fields are structurally compatible.
+// The index signature accepts `undefined` so the optional operation fields
+// are structurally compatible.
 export type BaseTypeDefs = {
-  Query: Record<string, { input: unknown; output: unknown }>;
+  Query?: Record<string, { input: unknown; output: unknown }>;
   Mutation?: Record<string, { input: unknown; output: unknown }>;
   Subscription?: Record<string, { input: unknown; output: unknown }>;
   [key: string]: Record<string, unknown> | undefined;

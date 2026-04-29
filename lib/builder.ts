@@ -63,10 +63,10 @@ type Builder = {
    * typeDefs;` as the single source of truth for both client and
    * resolver types.
    */
-  typeDef: <T>(typeDef: T) => UnwrapTypeBuilder<T>;
-  combineTypeDefs: <T extends TypeDef>(
+  typeDef: <T>(typeDef: T) => { types: UnwrapTypeBuilder<T>; toSDL: () => string };
+  combineTypeDefs: <T extends { types: TypeDef }>(
     typeDefs: T[]
-  ) => { types: Merge<T[]>; toSDL: () => string };
+  ) => { types: Merge<T["types"][]>; toSDL: () => string };
   /**
    * Declare a reusable object type. At runtime a pass-through identity
    * function; at the type level, `ExtractValue` unwraps any thunk-valued
@@ -126,8 +126,18 @@ type Builder = {
 
 export const createTypeDefBuilder = (): Builder => {
   const builder: Builder = {
-    typeDef: (typeDef) => typeDef as any,
+    typeDef: (typeDef) => {
+      const evaluated = evaluate(typeDef as object);
+      const toSDL = () => {
+        const ast = builderToAst(evaluated as any);
+        return print(ast);
+      };
+      return { types: evaluated, toSDL } as any;
+    },
     combineTypeDefs: (typeDefs) => {
+      // Extract the already-evaluated `.types` from each wrapped typeDef.
+      const rawTypes = typeDefs.map((td: any) => td.types);
+
       // Dev-only: surface structural conflicts between typeDefs before the
       // deep-merge silently later-wins. The most common footgun is two
       // schema files both declaring e.g. `Query.getPost` with different
@@ -139,7 +149,7 @@ export const createTypeDefBuilder = (): Builder => {
         typeof process !== "undefined" &&
         process.env?.NODE_ENV !== "production"
       ) {
-        const conflicts = detectConflicts(typeDefs as readonly unknown[]);
+        const conflicts = detectConflicts(rawTypes as readonly unknown[]);
         if (conflicts.length > 0) {
           // eslint-disable-next-line no-console
           console.warn(
@@ -148,18 +158,15 @@ export const createTypeDefBuilder = (): Builder => {
         }
       }
 
-      // Eagerly merge + evaluate so that `.types` actually contains the merged
-      // object the type signature claims (and so that downstream consumers like
-      // the client can read input/output GraphQL type strings at runtime).
-      const merged = merge(...typeDefs);
-      const evaluated = evaluate(merged as object);
+      // Deep-merge the pre-evaluated types from each typeDef.
+      const merged = merge(...rawTypes);
 
       const toSDL = () => {
-        const ast = builderToAst(evaluated as any);
+        const ast = builderToAst(merged as any);
         return print(ast);
       };
 
-      return { types: evaluated as any, toSDL };
+      return { types: merged as any, toSDL };
     },
     type: (type) => type as any,
     query: (query) => query as any,
