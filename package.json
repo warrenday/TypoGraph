@@ -61,7 +61,8 @@
     "test": "vitest --typecheck --run",
     "dev": "npm --prefix ./examples/demo run dev",
     "build": "vite build",
-    "typecheck": "tsc --noEmit"
+    "typecheck": "tsc --noEmit",
+    "prepublishOnly": "npm run build"
   },
   "peerDependencies": {
     "graphql": "^16.0.0"
