@@ -42,7 +42,7 @@
       ]
     }
   },
-  "version": "1.0.3",
+  "version": "1.0.4",
   "description": "Write GraphQL in plain TypeScript — fully typed end-to-end, with no codegen, no build step, and zero lock-in.",
   "license": "MIT",
   "repository": {
