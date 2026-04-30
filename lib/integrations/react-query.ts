@@ -9,6 +9,7 @@ import {
 import createClient from "../client";
 import type {
   SelectionsByOperation,
+  ValidateSelectionsByOperation,
   MergedVariables,
   ReturnShape,
 } from "../client";
@@ -51,7 +52,7 @@ export interface ReactQueryIntegrationOptions {
 // transport. See `docs/any-client.mdx`.
 interface ReactQueryIntegration<Schema extends BaseTypeDefs> {
   useQuery: <const S extends SelectionsByOperation<Schema, "Query">>(
-    selection: S,
+    selection: S & ValidateSelectionsByOperation<Schema, "Query", S>,
     options?: Omit<
       UseQueryOptions<ReturnShape<Schema, "Query", S>, Error>,
       "queryKey" | "queryFn"
@@ -62,7 +63,7 @@ interface ReactQueryIntegration<Schema extends BaseTypeDefs> {
   ) => UseQueryResult<ReturnShape<Schema, "Query", S>, Error>;
 
   useMutation: <const S extends SelectionsByOperation<Schema, "Mutation">>(
-    selection: S,
+    selection: S & ValidateSelectionsByOperation<Schema, "Mutation", S>,
     options?: Omit<
       UseMutationOptions<
         ReturnShape<Schema, "Mutation", S>,
@@ -127,7 +128,7 @@ export const createReactQueryIntegration = <
     }
   ): UseQueryResult<ReturnShape<Schema, "Query", S>, Error> => {
     const { variables, queryKey, ...rest } = (options ?? {}) as any;
-    const res = typograph.query(selection, { variables } as any);
+    const res = typograph.query(selection as any, { variables } as any);
     const query = res.toGraphQL();
     const vars = res.variables;
 
@@ -168,7 +169,7 @@ export const createReactQueryIntegration = <
       mutationFn: async (
         variables: MergedVariables<Schema, "Mutation", S>
       ) => {
-        const res = typograph.mutate(selection, { variables } as any);
+        const res = typograph.mutate(selection as any, { variables } as any);
         return fetcher(res.toGraphQL(), res.variables) as Promise<
           ReturnShape<Schema, "Mutation", S>
         >;

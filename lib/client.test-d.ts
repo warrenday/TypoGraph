@@ -330,4 +330,29 @@ describe("createClient", () => {
     // with the same type — the merged variables shape collapses to one key.
     expectTypeOf(res.variables).toEqualTypeOf<{ id: string }>();
   });
+
+  it("rejects unknown fields even when mixed with valid fields", () => {
+    type Post = { id: string; title: string; body: string };
+
+    const client = createClient({} as {
+      types: {
+        Query: {
+          listPosts: { input: {}; output: Post[] };
+        };
+        Mutation: {};
+      };
+    });
+
+    // An unknown field alongside valid fields must still error.
+    client.query(
+      {
+        listPosts: {
+          id: true,
+          // @ts-expect-error - 'nonExistent' is not a field on Post
+          nonExistent: true,
+        },
+      },
+      { variables: {} }
+    );
+  });
 });

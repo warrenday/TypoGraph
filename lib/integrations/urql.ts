@@ -12,6 +12,7 @@ import {
 import createClient from "../client";
 import type {
   SelectionsByOperation,
+  ValidateSelectionsByOperation,
   MergedVariables,
   ReturnShape,
 } from "../client";
@@ -45,12 +46,12 @@ interface UseSubscriptionOptions<Variables> {
 
 interface UrqlIntegration<Schema extends BaseTypeDefs> {
   useQuery: <const S extends SelectionsByOperation<Schema, "Query">>(
-    selection: S,
+    selection: S & ValidateSelectionsByOperation<Schema, "Query", S>,
     options?: UseQueryOptions<MergedVariables<Schema, "Query", S>>,
   ) => UseQueryResponse<ReturnShape<Schema, "Query", S>, any>;
 
   useMutation: <const S extends SelectionsByOperation<Schema, "Mutation">>(
-    selection: S,
+    selection: S & ValidateSelectionsByOperation<Schema, "Mutation", S>,
   ) => readonly [
     { fetching: boolean; error?: Error; data?: ReturnShape<Schema, "Mutation", S> },
     (
@@ -61,7 +62,7 @@ interface UrqlIntegration<Schema extends BaseTypeDefs> {
   useSubscription: <
     const S extends SelectionsByOperation<Schema, "Subscription">,
   >(
-    selection: S,
+    selection: S & ValidateSelectionsByOperation<Schema, "Subscription", S>,
     options?: UseSubscriptionOptions<
       MergedVariables<Schema, "Subscription", S>
     >,
@@ -110,7 +111,7 @@ export const createUrqlIntegration = <T extends { types: BaseTypeDefs }>(
     selection: S,
     options?: UseQueryOptions<MergedVariables<Schema, "Query", S>>,
   ): UseQueryResponse<ReturnShape<Schema, "Query", S>, any> => {
-    const res = typograph.query(selection, options as any);
+    const res = typograph.query(selection as any, options as any);
     return useUrqlQuery<ReturnShape<Schema, "Query", S>, any>({
       query: res.toGraphQL(),
       variables: res.variables,
@@ -163,7 +164,7 @@ export const createUrqlIntegration = <T extends { types: BaseTypeDefs }>(
     const execute = useCallback(
       async (variables: MergedVariables<Schema, "Mutation", S>) => {
         setState({ fetching: true });
-        const res = typograph.mutate(selection, { variables } as any);
+        const res = typograph.mutate(selection as any, { variables } as any);
         const result = await client
           .mutation<
             ReturnShape<Schema, "Mutation", S>,
@@ -197,7 +198,7 @@ export const createUrqlIntegration = <T extends { types: BaseTypeDefs }>(
       MergedVariables<Schema, "Subscription", S>
     >,
   ): UseSubscriptionResponse<ReturnShape<Schema, "Subscription", S>, any> => {
-    const res = typograph.subscribe(selection, options as any);
+    const res = typograph.subscribe(selection as any, options as any);
     return useUrqlSubscription<
       ReturnShape<Schema, "Subscription", S>,
       ReturnShape<Schema, "Subscription", S>,

@@ -2,6 +2,7 @@ import createClient, { args } from "./client";
 import type {
   SelectionSet,
   SelectionsByOperation,
+  ValidateSelectionsByOperation,
   MergedVariables,
   ArgsWrapper,
   VariableReference,
@@ -14,6 +15,7 @@ export type {
   Resolvers,
   SelectionSet,
   SelectionsByOperation,
+  ValidateSelectionsByOperation,
   MergedVariables,
   ArgsWrapper,
   VariableReference,

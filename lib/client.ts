@@ -6,10 +6,7 @@ import {
   UnionToIntersection,
 } from "./types/common";
 import buildGraphQLQuery from "./utils/buildGraphQLQuery";
-import {
-  isArgsWrapper,
-  isFieldWithArgsWrapper,
-} from "./utils/runtime-types";
+import { isArgsWrapper, isFieldWithArgsWrapper } from "./utils/runtime-types";
 
 type BaseType = "Query" | "Mutation" | "Subscription";
 
@@ -25,7 +22,7 @@ type BaseType = "Query" | "Mutation" | "Subscription";
 // subscribe handler accepts no fields — which is exactly what we want.
 type GetOperationMap<
   Schema extends BaseTypeDefs,
-  Operation extends BaseType
+  Operation extends BaseType,
 > = NonNullable<Schema[Operation]>;
 
 // A variable reference in an `args(...)` map. Must start with `$` to
@@ -50,7 +47,10 @@ export type VariableReference = `$${string}`;
 // renamed variable would collapse to `never` in the merged variables type.
 export type ArgsWrapper<
   S,
-  A extends Record<string, VariableReference> = Record<string, VariableReference>
+  A extends Record<string, VariableReference> = Record<
+    string,
+    VariableReference
+  >,
 > = {
   __args: A;
   selection: S;
@@ -70,10 +70,10 @@ export type ArgsWrapper<
 // preserved end-to-end.
 export const args = <
   const ArgMap extends Record<string, VariableReference>,
-  const Selection
+  const Selection,
 >(
   argMap: ArgMap,
-  selection: Selection
+  selection: Selection,
 ): ArgsWrapper<Selection, ArgMap> => ({ __args: argMap, selection });
 
 // Extract the inner selection from a wrapped or unwrapped selection.
@@ -95,7 +95,10 @@ type StripDollar<S> = S extends `$${infer Name}` ? Name : never;
 // `args({ id: "$postId" }, ...)` requires the caller to pass `postId`
 // instead of `id` (and lets two operations sharing an arg name disambiguate
 // without colliding in the merged variables object).
-type RenameInputArgs<Input, ArgMap extends Record<string, VariableReference>> = {
+type RenameInputArgs<
+  Input,
+  ArgMap extends Record<string, VariableReference>,
+> = {
   [K in keyof ArgMap as StripDollar<ArgMap[K]>]: K extends keyof Input
     ? Input[K]
     : never;
@@ -136,20 +139,18 @@ type Primitive = string | number | boolean | bigint | null | undefined;
 export type SelectionSet<T> = [T] extends [Primitive]
   ? true
   : T extends Array<infer Item>
-  ? SelectionSet<Item>
-  : {
-      [K in keyof T]?: PeelFieldArgs<T[K]> extends Array<infer U>
-        ?
-            | SelectionSet<U>
-            | ArgsWrapper<SelectionSet<U>> // For arrays, apply selection to the item type
-        : PeelFieldArgs<T[K]> extends object
-        ?
-            | SelectionSet<PeelFieldArgs<T[K]>>
-            | ArgsWrapper<SelectionSet<PeelFieldArgs<T[K]>>> // For objects, allow nested selection
-        : true; // For primitives, use boolean flag
-    } & {
-      __typename?: true;
-    };
+    ? SelectionSet<Item>
+    : {
+        [K in keyof T]?: PeelFieldArgs<T[K]> extends Array<infer U>
+          ? SelectionSet<U> | ArgsWrapper<SelectionSet<U>> // For arrays, apply selection to the item type
+          : PeelFieldArgs<T[K]> extends object
+            ?
+                | SelectionSet<PeelFieldArgs<T[K]>>
+                | ArgsWrapper<SelectionSet<PeelFieldArgs<T[K]>>> // For objects, allow nested selection
+            : true; // For primitives, use boolean flag
+      } & {
+        __typename?: true;
+      };
 
 // Map selection set to actual response type based on selected fields. As with
 // SelectionSet, a top-level array T means "apply the selection to each item".
@@ -170,20 +171,23 @@ export type SelectionSet<T> = [T] extends [Primitive]
 type SelectFields<T, Selection> = [T] extends [Primitive]
   ? T
   : T extends Array<infer Item>
-  ? Array<SelectFields<Item, Selection>>
-  : {
-      [K in keyof Selection]: K extends "__typename"
-        ? string
-        : K extends keyof T
-        ? Selection[K] extends true
-          ? PeelFieldArgs<T[K]> // Include primitive field as-is
-          : ExtractSelection<Selection[K]> extends object
-          ? PeelFieldArgs<T[K]> extends Array<infer Item>
-            ? Array<SelectFields<Item, ExtractSelection<Selection[K]>>> // Apply selection to array items
-            : SelectFields<PeelFieldArgs<T[K]>, ExtractSelection<Selection[K]>> // Apply selection to nested object
-          : never
-        : never;
-    };
+    ? Array<SelectFields<Item, Selection>>
+    : {
+        [K in keyof Selection]: K extends "__typename"
+          ? string
+          : K extends keyof T
+            ? Selection[K] extends true
+              ? PeelFieldArgs<T[K]> // Include primitive field as-is
+              : ExtractSelection<Selection[K]> extends object
+                ? PeelFieldArgs<T[K]> extends Array<infer Item>
+                  ? Array<SelectFields<Item, ExtractSelection<Selection[K]>>> // Apply selection to array items
+                  : SelectFields<
+                      PeelFieldArgs<T[K]>,
+                      ExtractSelection<Selection[K]>
+                    > // Apply selection to nested object
+                : never
+            : never;
+      };
 
 // Map of operation name → selection set, constrained to keys that actually
 // exist on the schema's Query/Mutation/Subscription map. This is the public
@@ -197,13 +201,75 @@ type SelectFields<T, Selection> = [T] extends [Primitive]
 // inside so the rest of the type machinery can still walk it.
 export type SelectionsByOperation<
   Schema extends BaseTypeDefs,
-  Operation extends BaseType
+  Operation extends BaseType,
 > = {
   [K in keyof GetOperationMap<Schema, Operation>]?:
     | SelectionSet<GetOperationMap<Schema, Operation>[K]["output"]>
     | ArgsWrapper<
         SelectionSet<GetOperationMap<Schema, Operation>[K]["output"]>
       >;
+};
+
+// Recursively validate a selection against the schema type. Keys in `S`
+// that don't exist in `T` map to `never`. When intersected with the actual
+// selection (`selections: S & ValidateSelectionsByOperation<...>`), any
+// invalid key becomes `true & never = never`, forcing a compile error at
+// the call site instead of silently producing `never` in the return type.
+type ValidateSelectionSet<T, S> = [T] extends [Primitive]
+  ? S
+  : T extends Array<infer Item>
+    ? ValidateSelectionSet<Item, S>
+    : S extends ArgsWrapper<infer Inner, infer A>
+      ? ArgsWrapper<ValidateSelectionSet<T, Inner>, A>
+      : {
+          [K in keyof S]: K extends "__typename"
+            ? S[K]
+            : K extends keyof T
+              ? S[K] extends true
+                ? true
+                : S[K] extends ArgsWrapper<infer Inner, infer A>
+                  ? ArgsWrapper<
+                      ValidateSelectionSet<
+                        PeelFieldArgs<T[K]> extends Array<infer U>
+                          ? U
+                          : PeelFieldArgs<T[K]>,
+                        Inner
+                      >,
+                      A
+                    >
+                  : ExtractSelection<S[K]> extends object
+                    ? ValidateSelectionSet<
+                        PeelFieldArgs<T[K]> extends Array<infer U>
+                          ? U
+                          : PeelFieldArgs<T[K]>,
+                        ExtractSelection<S[K]>
+                      >
+                    : S[K]
+              : never;
+        };
+
+// Per-operation wrapper around `ValidateSelectionSet`. Maps each selected
+// operation key through the validation, leaving unknown operation keys
+// (already caught by the `extends SelectionsByOperation` constraint) as-is.
+export type ValidateSelectionsByOperation<
+  Schema extends BaseTypeDefs,
+  Operation extends BaseType,
+  Selections,
+> = {
+  [K in keyof Selections]: K extends keyof GetOperationMap<Schema, Operation>
+    ? Selections[K] extends ArgsWrapper<infer Inner, infer A>
+      ? ArgsWrapper<
+          ValidateSelectionSet<
+            GetOperationMap<Schema, Operation>[K]["output"],
+            Inner
+          >,
+          A
+        >
+      : ValidateSelectionSet<
+          GetOperationMap<Schema, Operation>[K]["output"],
+          Selections[K]
+        >
+    : Selections[K];
 };
 
 // Convert keys whose value type includes `undefined` into optional `?`
@@ -235,14 +301,12 @@ type MutableInput<I> = { -readonly [P in keyof I]: I[P] };
 // literal `{ id: "$postId" }` shape from the call site survives the merge
 // — without the explicit infer the `__args` lookup would yield the wide
 // `Record<string, VariableReference>` constraint and collapse to `never`.
-type OperationVariables<Selection, Input> = Selection extends ArgsWrapper<
-  any,
-  infer ArgMap
->
-  ? ArgMap extends Record<string, VariableReference>
-    ? RenameInputArgs<MutableInput<Input>, ArgMap>
-    : MutableInput<Input>
-  : MutableInput<Input>;
+type OperationVariables<Selection, Input> =
+  Selection extends ArgsWrapper<any, infer ArgMap>
+    ? ArgMap extends Record<string, VariableReference>
+      ? RenameInputArgs<MutableInput<Input>, ArgMap>
+      : MutableInput<Input>
+    : MutableInput<Input>;
 
 // Compute one field's contribution to the merged variables when its
 // selection is wrapped in `args(...)`. Two conditions must hold:
@@ -256,16 +320,14 @@ type OperationVariables<Selection, Input> = Selection extends ArgsWrapper<
 // to nullable, mirroring how `t.int()` emits `Int` rather than `Int!`).
 // Anything else collapses to `{}`, which intersects to a no-op inside
 // `UnionToIntersection`.
-type NestedArgContribution<TField, SField> = SField extends ArgsWrapper<
-  any,
-  infer ArgMap
->
-  ? TField extends FieldWithArgs<infer FieldInput, any>
-    ? ArgMap extends Record<string, VariableReference>
-      ? RenameInputArgs<MutableInput<Partial<FieldInput>>, ArgMap>
-      : MutableInput<Partial<FieldInput>>
-    : {}
-  : {};
+type NestedArgContribution<TField, SField> =
+  SField extends ArgsWrapper<any, infer ArgMap>
+    ? TField extends FieldWithArgs<infer FieldInput, any>
+      ? ArgMap extends Record<string, VariableReference>
+        ? RenameInputArgs<MutableInput<Partial<FieldInput>>, ArgMap>
+        : MutableInput<Partial<FieldInput>>
+      : {}
+    : {};
 
 // Walk a selection tree against the parent type it projects from to find
 // every nested `args(...)` wrapper bound to a `builder.field`-declared
@@ -300,26 +362,26 @@ type WalkDepthTail<D extends unknown[]> = D extends [unknown, ...infer R]
 type WalkSelectionForArgs<
   T,
   S,
-  Depth extends unknown[] = WalkDepthInit
+  Depth extends unknown[] = WalkDepthInit,
 > = Depth extends []
   ? {}
   : T extends Array<infer Item>
-  ? WalkSelectionForArgs<Item, S, Depth>
-  : T extends Record<string, any>
-  ? S extends Record<string, any>
-    ? {
-        [K in keyof S & keyof T]:
-          | NestedArgContribution<T[K], S[K]>
-          | WalkSelectionForArgs<
-              PeelFieldArgs<T[K]> extends Array<infer Inner>
-                ? Inner
-                : PeelFieldArgs<T[K]>,
-              ExtractSelection<S[K]>,
-              WalkDepthTail<Depth>
-            >;
-      }[keyof S & keyof T]
-    : {}
-  : {};
+    ? WalkSelectionForArgs<Item, S, Depth>
+    : T extends Record<string, any>
+      ? S extends Record<string, any>
+        ? {
+            [K in keyof S & keyof T]:
+              | NestedArgContribution<T[K], S[K]>
+              | WalkSelectionForArgs<
+                  PeelFieldArgs<T[K]> extends Array<infer Inner>
+                    ? Inner
+                    : PeelFieldArgs<T[K]>,
+                  ExtractSelection<S[K]>,
+                  WalkDepthTail<Depth>
+                >;
+          }[keyof S & keyof T]
+        : {}
+      : {};
 
 // Merge the input shapes of every operation that the caller selected into a
 // single variables object. Two operations sharing a variable name (e.g. both
@@ -351,13 +413,12 @@ type WalkSelectionForArgs<
 export type MergedVariables<
   Schema extends BaseTypeDefs,
   Operation extends BaseType,
-  Selections
+  Selections,
 > = Prettify<
   MakeOptional<
     UnionToIntersection<
       {
-        [K in keyof Selections &
-          keyof GetOperationMap<Schema, Operation>]:
+        [K in keyof Selections & keyof GetOperationMap<Schema, Operation>]:
           | OperationVariables<
               Selections[K],
               GetOperationMap<Schema, Operation>[K]["input"]
@@ -375,11 +436,12 @@ export type MergedVariables<
 // to selection trees, then project the output type through the selection.
 // Without this the resulting `returnType` would be deeply readonly, which
 // would make every consumer assertion (`toEqualTypeOf<{...}>`) fail.
-type Mutable<T> = T extends Array<infer U>
-  ? Array<Mutable<U>>
-  : T extends object
-  ? { -readonly [K in keyof T]: Mutable<T[K]> }
-  : T;
+type Mutable<T> =
+  T extends Array<infer U>
+    ? Array<Mutable<U>>
+    : T extends object
+      ? { -readonly [K in keyof T]: Mutable<T[K]> }
+      : T;
 
 // The typed return shape: one key per selected operation, each carrying the
 // projection of its output type through the user-supplied selection set.
@@ -394,7 +456,7 @@ type Mutable<T> = T extends Array<infer U>
 export type ReturnShape<
   Schema extends BaseTypeDefs,
   Operation extends BaseType,
-  Selections
+  Selections,
 > = Prettify<{
   -readonly [K in keyof Selections]: K extends keyof GetOperationMap<
     Schema,
@@ -412,13 +474,14 @@ export type ReturnShape<
 // Generic operation handler type for both query and mutation.
 type OperationHandler<
   Schema extends BaseTypeDefs,
-  Operation extends BaseType
+  Operation extends BaseType,
 > = <
   const Selections extends SelectionsByOperation<Schema, Operation>,
-  Variables extends MergedVariables<Schema, Operation, Selections>
+  Variables extends MergedVariables<Schema, Operation, Selections>,
 >(
-  selections: Selections,
-  options?: { variables: Variables }
+  selections: Selections &
+    ValidateSelectionsByOperation<Schema, Operation, Selections>,
+  options?: { variables: Variables },
 ) => {
   // Phantom value: only the *type* matters here. Consumers do
   // `typeof res.returnType` to recover the typed response shape.
@@ -428,7 +491,6 @@ type OperationHandler<
   variables: Variables;
   toGraphQL: () => string;
 };
-
 
 // Strip GraphQL non-null and list wrappers from a type string so we can use
 // the inner named type as a lookup key. Mirrors what the SDL pipeline does
@@ -448,7 +510,7 @@ const stripTypeWrappers = (typeStr: string): string => {
 // degrades gracefully (e.g. for `__typename`, which has no schema entry).
 const getFieldInfo = (
   parentTypeFields: Record<string, unknown> | undefined,
-  fieldName: string
+  fieldName: string,
 ):
   | {
       output: string;
@@ -470,11 +532,11 @@ const getFieldInfo = (
 // Create operation handler implementation.
 const createOperationHandler = <
   Schema extends BaseTypeDefs,
-  Operation extends BaseType
+  Operation extends BaseType,
 >(
   typeDefs: { types: Schema },
   operationKind: Operation,
-  operationType: Lowercase<Operation>
+  operationType: Lowercase<Operation>,
 ): OperationHandler<Schema, Operation> => {
   return (selections, options) => {
     const variables = (options?.variables ?? {}) as Record<string, unknown>;
@@ -500,9 +562,7 @@ const createOperationHandler = <
           // The `args(...)` helper requires references to start with `$` to
           // mirror the on-the-wire syntax, but the actual variables map uses
           // bare names. Strip exactly one leading `$`.
-          renames[argName] = varRef.startsWith("$")
-            ? varRef.slice(1)
-            : varRef;
+          renames[argName] = varRef.startsWith("$") ? varRef.slice(1) : varRef;
         }
         argRenameByOperation[opName] = renames;
         cleanSelections[opName] = sel.selection;
@@ -514,10 +574,7 @@ const createOperationHandler = <
     // Look up each selected operation's input map (variable name → GraphQL
     // type string) from the eagerly-evaluated typeDefs. Operations that
     // genuinely have no variables collapse to {}.
-    const inputDefByOperation: Record<
-      string,
-      Record<string, string>
-    > = {};
+    const inputDefByOperation: Record<string, Record<string, string>> = {};
     for (const opName of Object.keys(cleanSelections)) {
       const operationDef = typeDefs.types[operationKind]?.[opName] as
         | { input?: Record<string, string> }
@@ -546,10 +603,7 @@ const createOperationHandler = <
     const walk = (
       selection: any,
       parentTypeFields: Record<string, unknown> | undefined,
-      extras: Record<
-        string,
-        string | { type: string; default: unknown }
-      >
+      extras: Record<string, string | { type: string; default: unknown }>,
     ): any => {
       if (selection === true || selection === false) return selection;
       if (typeof selection !== "object" || selection === null) return selection;
@@ -558,9 +612,7 @@ const createOperationHandler = <
       for (const fieldName of Object.keys(selection)) {
         const value = (selection as Record<string, any>)[fieldName];
         const info = getFieldInfo(parentTypeFields, fieldName);
-        const innerTypeName = info
-          ? stripTypeWrappers(info.output)
-          : undefined;
+        const innerTypeName = info ? stripTypeWrappers(info.output) : undefined;
         const innerTypeFields = innerTypeName
           ? (typeDefs.types as Record<string, any>)[innerTypeName]
           : undefined;
@@ -580,11 +632,7 @@ const createOperationHandler = <
               extras[varName] = argDef;
             }
           }
-          const innerWalked = walk(
-            value.selection,
-            innerTypeFields,
-            extras
-          );
+          const innerWalked = walk(value.selection, innerTypeFields, extras);
           out[fieldName] = { __args: value.__args, selection: innerWalked };
           continue;
         }
@@ -607,9 +655,9 @@ const createOperationHandler = <
       // Selections at this level are the *result* of an operation, so the
       // "parent type fields" the walk needs are the operation's output
       // type's fields. Look that up via the operation's own def.
-      const operationDef = (typeDefs.types[operationKind] as
-        | Record<string, any>
-        | undefined)?.[opName] as { output?: string } | undefined;
+      const operationDef = (
+        typeDefs.types[operationKind] as Record<string, any> | undefined
+      )?.[opName] as { output?: string } | undefined;
       const outputTypeName = operationDef?.output
         ? stripTypeWrappers(operationDef.output)
         : undefined;
@@ -624,7 +672,7 @@ const createOperationHandler = <
       walkedSelections[opName] = walk(
         cleanSelections[opName],
         outputTypeFields,
-        extras
+        extras,
       );
       if (Object.keys(extras).length > 0) {
         extraHeaderVarsByOperation[opName] = extras;
@@ -641,7 +689,7 @@ const createOperationHandler = <
           inputDefByOperation,
           variables,
           argRenameByOperation,
-          extraHeaderVarsByOperation
+          extraHeaderVarsByOperation,
         ),
     };
   };
@@ -656,12 +704,12 @@ const createClient = <T extends { types: BaseTypeDefs }>(typeDefs: T) => {
     mutate: createOperationHandler<Schema, "Mutation">(
       typeDefs,
       "Mutation",
-      "mutation"
+      "mutation",
     ),
     subscribe: createOperationHandler<Schema, "Subscription">(
       typeDefs,
       "Subscription",
-      "subscription"
+      "subscription",
     ),
   };
 };

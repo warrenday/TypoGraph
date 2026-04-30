@@ -12,6 +12,7 @@ import {
 import createClient from "../client";
 import type {
   SelectionsByOperation,
+  ValidateSelectionsByOperation,
   MergedVariables,
   ReturnShape,
 } from "../client";
@@ -40,12 +41,12 @@ interface ApolloMutationState<TData> {
 
 interface ApolloIntegration<Schema extends BaseTypeDefs> {
   useQuery: <const S extends SelectionsByOperation<Schema, "Query">>(
-    selection: S,
+    selection: S & ValidateSelectionsByOperation<Schema, "Query", S>,
     options?: { variables: MergedVariables<Schema, "Query", S> },
   ) => QueryResult<ReturnShape<Schema, "Query", S>, any>;
 
   useMutation: <const S extends SelectionsByOperation<Schema, "Mutation">>(
-    selection: S,
+    selection: S & ValidateSelectionsByOperation<Schema, "Mutation", S>,
   ) => readonly [
     (
       variables: MergedVariables<Schema, "Mutation", S>,
@@ -56,7 +57,7 @@ interface ApolloIntegration<Schema extends BaseTypeDefs> {
   useSubscription: <
     const S extends SelectionsByOperation<Schema, "Subscription">,
   >(
-    selection: S,
+    selection: S & ValidateSelectionsByOperation<Schema, "Subscription", S>,
     options?: { variables: MergedVariables<Schema, "Subscription", S> },
   ) => SubscriptionResult<ReturnShape<Schema, "Subscription", S>, any>;
 }
@@ -103,7 +104,7 @@ export const createApolloIntegration = <T extends { types: BaseTypeDefs }>(
     selection: S,
     options?: { variables: MergedVariables<Schema, "Query", S> },
   ): QueryResult<ReturnShape<Schema, "Query", S>, any> => {
-    const res = typograph.query(selection, options as any);
+    const res = typograph.query(selection as any, options as any);
     return useApolloQuery<ReturnShape<Schema, "Query", S>, any>(
       gql(res.toGraphQL()),
       { variables: res.variables },
@@ -162,7 +163,7 @@ export const createApolloIntegration = <T extends { types: BaseTypeDefs }>(
           data: undefined,
           error: undefined,
         });
-        const res = typograph.mutate(selection, { variables } as any);
+        const res = typograph.mutate(selection as any, { variables } as any);
         try {
           const result = await client.mutate<TData>({
             mutation: gql(res.toGraphQL()),
@@ -209,7 +210,7 @@ export const createApolloIntegration = <T extends { types: BaseTypeDefs }>(
     selection: S,
     options?: { variables: MergedVariables<Schema, "Subscription", S> },
   ): SubscriptionResult<ReturnShape<Schema, "Subscription", S>, any> => {
-    const res = typograph.subscribe(selection, options as any);
+    const res = typograph.subscribe(selection as any, options as any);
     return useApolloSubscription<ReturnShape<Schema, "Subscription", S>, any>(
       gql(res.toGraphQL()),
       { variables: res.variables },
