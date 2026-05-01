@@ -9,6 +9,10 @@ If your server and client live in the same codebase — a Next.js app, a monorep
 
 It's not trying to replace Apollo, Pothos, or any other GraphQL stack. It's the minimal option for when you own both ends and just want types to flow through.
 
+## Demo
+
+[![Watch the demo](https://img.youtube.com/vi/oCRgS9mvTAo/maxresdefault.jpg)](https://www.youtube.com/watch?v=oCRgS9mvTAo)
+
 ## When to use it
 
 - ✅ You have a Next.js / Remix / full-stack TS app and want GraphQL without the ceremony

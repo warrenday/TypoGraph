@@ -12,6 +12,15 @@ export default function HomePage() {
         no codegen, no build step, and zero lock-in to any framework or
         client.
       </p>
+      <div className="mx-auto mb-8 w-full max-w-2xl aspect-video">
+        <iframe
+          className="w-full h-full rounded-lg"
+          src="https://www.youtube.com/embed/oCRgS9mvTAo"
+          title="Typograph Demo"
+          allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+          allowFullScreen
+        />
+      </div>
       <div className="flex flex-row items-center justify-center gap-3">
         <Link
           href="/docs"
