@@ -11,7 +11,7 @@ It's not trying to replace Apollo, Pothos, or any other GraphQL stack. It's the 
 
 ## Demo
 
-[![Watch the demo](https://img.youtube.com/vi/oCRgS9mvTAo/maxresdefault.jpg)](https://www.youtube.com/watch?v=oCRgS9mvTAo)
+https://www.youtube.com/watch?v=oCRgS9mvTAo
 
 ## When to use it
 
