@@ -15,8 +15,8 @@ const geistMono = Geist_Mono({
 
 export const metadata = {
   title: {
-    default: "Typograph",
-    template: "%s | Typograph",
+    default: "hello world",
+    template: "%s | hello world",
   },
   description:
     "A pure TypeScript library for building GraphQL schemas with full end-to-end type safety.",
