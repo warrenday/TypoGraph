@@ -4,7 +4,7 @@ export default function HomePage() {
   return (
     <main className="flex flex-1 flex-col justify-center text-center px-4">
       <h1 className="mb-4 text-4xl font-bold tracking-tight sm:text-5xl">
-        Typograph
+        Welcome to Typograph V2
       </h1>
       <p className="mx-auto mb-8 max-w-2xl text-fd-muted-foreground">
         Write GraphQL in plain TypeScript. Typograph turns ordinary JavaScript
